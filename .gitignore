@@ -1,5 +1,7 @@
 .agent/skills/
-
 backend/.env
-
 frontend/.env
+.agent/
+.agents/
+.vscode/settings.json
+skills-lock.json
