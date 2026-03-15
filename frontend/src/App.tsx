@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import './App.css';
 import Home from './pages/Home/Home';
 import TopBar from './components/TopBar/TopBar';
@@ -13,12 +13,15 @@ import ScrollToTop from './components/ScrollToTop/ScrollToTop';
 import { CartAnimationProvider } from './context/CartAnimationContext';
 
 const MainLayout = () => {
+  const location = useLocation();
+  const isCheckout = location.pathname === '/checkout';
+
   return (
     <>
       <TopBar />
       <Header />
       <Outlet />
-      <Footer />
+      {!isCheckout && <Footer />}
     </>
   );
 };
