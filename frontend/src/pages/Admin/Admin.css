@@ -80,11 +80,15 @@
 
 .admin-table { border: 1px solid var(--co-gray-200); border-radius: 10px; overflow: hidden; }
 .admin-table-row { display: grid; grid-template-columns: 1.1fr 1.2fr 1fr 1fr 0.8fr; padding: 10px 12px; align-items: center; gap: 8px; font-size: 14px; }
+.admin-table-row.wide { grid-template-columns: 1.1fr 1.2fr 1fr 1fr 0.8fr 1fr 0.8fr; }
 .admin-table-head { background: var(--co-gray-100); text-transform: uppercase; font-size: 12px; font-weight: 700; }
 .admin-table-row:nth-child(even) { background: var(--co-gray-50); }
 .admin-bold { font-weight: 800; }
 .admin-muted { color: var(--co-gray-600); }
-.admin-pill { display: inline-block; padding: 6px 8px; background: var(--co-gray-100); border-radius: 8px; font-weight: 700; font-size: 12px; }
+.admin-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; background: var(--co-gray-100); border-radius: 8px; font-weight: 700; font-size: 12px; }
+.admin-pill.success { background: #ecfdf3; color: #16a34a; }
+.admin-pill.pending { background: #fffbeb; color: #d97706; }
+.admin-pill.neutral { background: #f4f4f5; color: #3f3f46; }
 
 .admin-panel-side { display: flex; flex-direction: column; gap: 12px; }
 .admin-quick-links { display: flex; flex-direction: column; gap: 10px; }
@@ -94,6 +98,10 @@
 .admin-quick-desc { margin: 2px 0 0; color: var(--co-gray-600); font-size: 13px; }
 
 .admin-task-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; color: var(--co-gray-700); font-size: 14px; }
+
+.admin-hint { margin-top: 14px; padding: 12px; border: 1px solid var(--co-gray-200); border-radius: 10px; background: var(--co-gray-50); display: flex; flex-direction: column; gap: 8px; }
+.admin-hint-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-link { color: var(--co-blue); text-decoration: none; font-weight: 700; }
 
 @media (max-width: 1080px) {
   .admin-page { grid-template-columns: 1fr; }
