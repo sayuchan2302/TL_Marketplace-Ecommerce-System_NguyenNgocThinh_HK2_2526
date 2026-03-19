@@ -1,4 +1,4 @@
-import type { Order, OrderItem } from '../types';
+import type { Order } from '../types';
 
 const KEY = 'coolmate_orders_v1';
 
@@ -105,8 +105,4 @@ export const orderService = {
     save(data);
   },
 
-  reorderItems(orderId: string): OrderItem[] {
-    const order = this.getById(orderId);
-    return order ? order.items : [];
-  },
 };
