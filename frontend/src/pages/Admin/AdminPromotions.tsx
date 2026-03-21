@@ -512,8 +512,10 @@ const AdminPromotions = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: Math.min(idx * 0.03, 0.18) }}
                   whileHover={{ y: -1 }}
+                  onClick={() => openEditDrawer(promo)}
+                  style={{ cursor: 'pointer' }}
                 >
-                  <div role="cell"><input type="checkbox" aria-label={`Chọn ${promo.code}`} checked={selected.has(promo.id)} onChange={(e) => toggleOne(promo.id, e.target.checked)} /></div>
+                  <div role="cell" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={`Chọn ${promo.code}`} checked={selected.has(promo.id)} onChange={(e) => toggleOne(promo.id, e.target.checked)} /></div>
                   <div role="cell">
                     <p className="admin-bold promo-name">{promo.name}</p>
                     <p className="admin-muted promo-code">{promo.code}</p>
@@ -532,7 +534,7 @@ const AdminPromotions = () => {
                   </div>
                   <div role="cell" className="admin-muted">{formatDate(promo.startDate)} - {formatDate(promo.endDate)}</div>
                   <div role="cell"><span className={`admin-pill ${promotionStatusClass(currentStatus)}`}>{promotionStatusLabel(currentStatus)}</span></div>
-                  <div role="cell" className="admin-actions">
+                  <div role="cell" className="admin-actions" onClick={(e) => e.stopPropagation()}>
                     <button className="admin-icon-btn subtle" title={ADMIN_ACTION_TITLES.edit} aria-label={ADMIN_ACTION_TITLES.edit} onClick={() => openEditDrawer(promo)}><Pencil size={16} /></button>
                     <button className="admin-icon-btn subtle" title={promo.status === 'paused' ? ADMIN_ACTION_TITLES.resumeCampaign : ADMIN_ACTION_TITLES.pauseCampaign} aria-label={promo.status === 'paused' ? ADMIN_ACTION_TITLES.resumeCampaign : ADMIN_ACTION_TITLES.pauseCampaign} onClick={() => togglePause(promo.id)}>
                       {promo.status === 'paused' ? <Play size={16} /> : <Pause size={16} />}

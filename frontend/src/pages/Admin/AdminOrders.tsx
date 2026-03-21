@@ -308,8 +308,10 @@ const AdminOrders = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: Math.min(idx * 0.025, 0.16) }}
                 whileHover={{ y: -1 }}
+                onClick={() => window.location.href = `/admin/orders/${order.code}`}
+                style={{ cursor: 'pointer' }}
               >
-                <div role="cell">
+                <div role="cell" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     aria-label={aria.selectItem(order.code)}
@@ -334,7 +336,7 @@ const AdminOrders = () => {
                   </div>
                 </div>
                 <div role="cell" className="admin-muted order-date">{formatDateTime(order.date)}</div>
-                <div role="cell" className="admin-actions">
+                <div role="cell" className="admin-actions" onClick={(e) => e.stopPropagation()}>
                   <Link to={`/admin/orders/${order.code}`} className="admin-icon-btn subtle" aria-label={ADMIN_ACTION_TITLES.viewDetail}>
                     <Eye size={16} />
                   </Link>

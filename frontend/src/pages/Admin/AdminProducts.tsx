@@ -253,15 +253,18 @@ const AdminProducts = () => {
     setPendingStockAdjustment(null);
   };
 
-  const openDrawer = () => {
-    const managed = getProductBySku(MANAGED_PRODUCT_SKU);
+  const openDrawer = (product?: AdminProductRecord) => {
+    const sku = product?.sku || MANAGED_PRODUCT_SKU;
+    const managed = getProductBySku(sku);
     if (managed) {
       setVariantRows(managed.variantMatrix);
       setStock(String(managed.stock));
-      setInventoryLogs(getProductInventoryLedger(MANAGED_PRODUCT_SKU, 6));
+      setInventoryLogs(getProductInventoryLedger(sku, 6));
     }
     setShowDrawer(true);
   };
+
+  const handleAddProduct = () => openDrawer();
   const closeDrawer = () => setShowDrawer(false);
 
   const handleSaveDrawer = () => {
@@ -299,7 +302,7 @@ const AdminProducts = () => {
           <button className="admin-ghost-btn" onClick={() => pushToast(ADMIN_TOAST_MESSAGES.advancedFilterComingSoon)}><Filter size={16} /> {c.filter}</button>
           <button className="admin-ghost-btn" onClick={shareCurrentView}><Link2 size={16} /> {ADMIN_COMMON_LABELS.shareView}</button>
           <button className="admin-ghost-btn" onClick={resetCurrentView}>{ADMIN_COMMON_LABELS.resetView}</button>
-          <button type="button" className="admin-primary-btn" onClick={openDrawer}><Plus size={16} /> {t.addProduct}</button>
+          <button type="button" className="admin-primary-btn" onClick={handleAddProduct}><Plus size={16} /> {t.addProduct}</button>
         </>
       )}
     >
@@ -360,8 +363,10 @@ const AdminProducts = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: Math.min(idx * 0.025, 0.16) }}
                 whileHover={{ y: -1 }}
+                onClick={() => openDrawer(p)}
+                style={{ cursor: 'pointer' }}
               >
-                <div role="cell"><input type="checkbox" aria-label={`Chọn ${p.sku}`} checked={selected.has(p.sku)} onChange={e => toggleOne(p.sku, e.target.checked)} /></div>
+                <div role="cell" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={`Chọn ${p.sku}`} checked={selected.has(p.sku)} onChange={e => toggleOne(p.sku, e.target.checked)} /></div>
                 <div role="cell" className="product-cell">
                   <span className="thumb-wrapper">
                     <img src={p.thumb} alt={p.name} className="product-thumb" />
@@ -374,7 +379,7 @@ const AdminProducts = () => {
                   </div>
                 </div>
                 <div role="cell"><span className="badge">{p.category}</span></div>
-                <div role="cell" className="price-cell">
+                <div role="cell" className="price-cell" onClick={(e) => e.stopPropagation()}>
                   {editingPrice?.sku === p.sku ? (
                     <input
                       className="inline-input"
@@ -391,7 +396,7 @@ const AdminProducts = () => {
                     </button>
                   )}
                 </div>
-                <div role="cell" className={`stock-cell ${p.stock < 10 ? 'low-stock' : ''}`}>
+                <div role="cell" className={`stock-cell ${p.stock < 10 ? 'low-stock' : ''}`} onClick={(e) => e.stopPropagation()}>
                   {editingStock?.sku === p.sku ? (
                     <input
                       className="inline-input"
@@ -409,8 +414,8 @@ const AdminProducts = () => {
                   )}
                 </div>
                 <div role="cell"><span className={`admin-pill ${productStatusTone(p.statusType)}`}>{p.status}</span></div>
-                <div role="cell" className="admin-actions">
-                  <button className="admin-icon-btn subtle" title={ADMIN_ACTION_TITLES.edit} aria-label={ADMIN_ACTION_TITLES.edit} onClick={openDrawer}><Pencil size={16} /></button>
+                <div role="cell" className="admin-actions" onClick={(e) => e.stopPropagation()}>
+                  <button className="admin-icon-btn subtle" title={ADMIN_ACTION_TITLES.edit} aria-label={ADMIN_ACTION_TITLES.edit} onClick={() => openDrawer(p)}><Pencil size={16} /></button>
                   <button className="admin-icon-btn subtle" title={ADMIN_ACTION_TITLES.manageVariants} aria-label={ADMIN_ACTION_TITLES.manageVariants} onClick={openVariants}><Layers size={16} /></button>
                   <button className="admin-icon-btn subtle danger-icon" title={ADMIN_ACTION_TITLES.delete} aria-label={ADMIN_ACTION_TITLES.delete}><Trash2 size={16} /></button>
                 </div>

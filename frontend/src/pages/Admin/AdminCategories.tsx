@@ -452,6 +452,8 @@ const AdminCategories = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: Math.min(idx * 0.025, 0.16) }}
                 whileHover={{ y: -1 }}
+                onClick={() => openEditCategory(cat.id)}
+                style={{ cursor: 'pointer' }}
                 draggable
                 onDragStart={() => setDraggingId(cat.id)}
                 onDragOver={(e) => {
@@ -468,7 +470,7 @@ const AdminCategories = () => {
                   setDragOverId(null);
                 }}
               >
-                <div role="cell"><input type="checkbox" aria-label={`Chọn ${cat.name}`} checked={selected.has(cat.id)} onChange={e => toggleOne(cat.id, e.target.checked)} /></div>
+                <div role="cell" onClick={(e) => e.stopPropagation()}><input type="checkbox" aria-label={`Chọn ${cat.name}`} checked={selected.has(cat.id)} onChange={e => toggleOne(cat.id, e.target.checked)} /></div>
                 <div role="cell">
                   <div className="cat-thumb">
                     <img src={cat.image} alt={cat.name} />
@@ -477,7 +479,7 @@ const AdminCategories = () => {
                 <div role="cell" className="admin-bold">{cat.name}</div>
                 <div role="cell"><span className="badge gray">{parentNameById.get(cat.parentId) || 'Không có'}</span></div>
                 <div role="cell"><span className="badge blue">{cat.count} SP</span></div>
-                <div role="cell" className="order-cell">
+                <div role="cell" className="order-cell" onClick={(e) => e.stopPropagation()}>
                   <GripVertical size={14} className="order-grip" />
                   <input
                     type="number"
@@ -490,7 +492,7 @@ const AdminCategories = () => {
                   />
                 </div>
                 <div role="cell"><span className={`admin-pill ${cat.status === 'visible' ? 'success' : 'neutral'}`}>{cat.status === 'visible' ? 'Đang hiện' : 'Ẩn'}</span></div>
-                <div role="cell" className="admin-actions">
+                <div role="cell" className="admin-actions" onClick={(e) => e.stopPropagation()}>
                   <button className="admin-icon-btn subtle" title={ADMIN_ACTION_TITLES.edit} aria-label={ADMIN_ACTION_TITLES.edit} onClick={() => openEditCategory(cat.id)}><Pencil size={16} /></button>
                   <button
                     className="admin-icon-btn subtle"

@@ -713,6 +713,8 @@ const AdminCustomers = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: Math.min(idx * 0.025, 0.18) }}
                 whileHover={{ y: -1 }}
+                onClick={() => openDrawer(customer, 'activity')}
+                style={{ cursor: 'pointer' }}
               >
                 <div role="cell"><input type="checkbox" aria-label={`Chọn ${customer.name}`} checked={selected.has(customer.id)} onChange={(e) => toggleOne(customer.id, e.target.checked)} /></div>
                 <div role="cell" className="customer-info-cell">
@@ -728,7 +730,7 @@ const AdminCustomers = () => {
                 <div role="cell" className="admin-bold customer-spent">{formatCurrencyVnd(customer.totalSpent)}</div>
                 <div role="cell" className="customer-status-cell"><span className={`admin-pill ${customer.status === 'active' ? 'success' : 'error'}`}>{customer.status === 'active' ? t.drawer.status.active : t.drawer.status.banned}</span></div>
                 <div role="cell" className="admin-muted customer-last-order">{formatDate(customer.lastOrder)}</div>
-                <div role="cell" className="admin-actions">
+                <div role="cell" className="admin-actions" onClick={(e) => e.stopPropagation()}>
                   <button className="admin-icon-btn subtle" title={ADMIN_ACTION_TITLES.viewDetail} aria-label={ADMIN_ACTION_TITLES.viewDetail} onClick={() => openDrawer(customer, 'activity')}><Eye size={16} /></button>
                   <button className="admin-icon-btn subtle" title={customer.status === 'active' ? ADMIN_ACTION_TITLES.lockAccount : ADMIN_ACTION_TITLES.unlockAccount} aria-label={customer.status === 'active' ? ADMIN_ACTION_TITLES.lockAccount : ADMIN_ACTION_TITLES.unlockAccount} onClick={() => toggleBanStatus(customer.id)}><Ban size={16} /></button>
                   <button className="admin-icon-btn subtle danger-icon" title={ADMIN_ACTION_TITLES.delete} aria-label={ADMIN_ACTION_TITLES.delete} onClick={() => requestDeleteCustomer(customer)}><Trash2 size={16} /></button>
