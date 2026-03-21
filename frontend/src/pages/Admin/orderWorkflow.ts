@@ -46,19 +46,25 @@ export const fulfillmentTransitions: Record<FulfillmentStatus, FulfillmentStatus
 };
 
 export const fulfillmentLabel = (state: FulfillmentStatus) => {
-  if (state === 'pending') return 'Chờ xác nhận';
-  if (state === 'packing') return 'Đang đóng gói';
-  if (state === 'shipping') return 'Đang giao';
-  if (state === 'done') return 'Hoàn tất';
-  return 'Đã hủy';
+  const statusMap: Record<FulfillmentStatus, string> = {
+    pending: 'Chờ xác nhận',
+    packing: 'Đang đóng gói',
+    shipping: 'Đang giao',
+    done: 'Hoàn tất',
+    canceled: 'Đã hủy',
+  };
+  return statusMap[state];
 };
 
 export const shipLabel = (state: FulfillmentStatus) => {
-  if (state === 'pending') return 'Chờ xác nhận';
-  if (state === 'packing') return 'Đang đóng gói';
-  if (state === 'shipping') return 'Đang giao';
-  if (state === 'done') return 'Đã giao';
-  return 'Đã hủy';
+  const statusMap: Record<FulfillmentStatus, string> = {
+    pending: 'Chờ xác nhận',
+    packing: 'Đang đóng gói',
+    shipping: 'Đang giao',
+    done: 'Đã giao',
+    canceled: 'Đã hủy',
+  };
+  return statusMap[state];
 };
 
 export const paymentLabel = (state: PaymentStatus) => {

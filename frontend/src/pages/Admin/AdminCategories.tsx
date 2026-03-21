@@ -384,7 +384,7 @@ const AdminCategories = () => {
         <>
           <div className="admin-search">
             <Search size={16} />
-            <input placeholder={t.searchPlaceholder} value={search} onChange={e => handleSearchChange(e.target.value)} />
+            <input placeholder={t.searchPlaceholder} aria-label={t.searchPlaceholder} value={search} onChange={e => handleSearchChange(e.target.value)} />
           </div>
           <button className="admin-ghost-btn" onClick={shareCurrentView}><Link2 size={16} /> {ADMIN_COMMON_LABELS.shareView}</button>
           <button className="admin-ghost-btn" onClick={resetCurrentView}>{ADMIN_COMMON_LABELS.resetView}</button>
@@ -413,7 +413,7 @@ const AdminCategories = () => {
 
       {hasViewContext && (
         <div className="admin-view-summary">
-          <span className="summary-chip">{c.status}: {activeFilterLabel}</span>
+          <span className="summary-chip">{c.statusLabel}: {activeFilterLabel}</span>
           {search.trim() && <span className="summary-chip">{c.keyword}: {search.trim()}</span>}
           <button className="summary-clear" onClick={resetCurrentView}>{c.clearFilters}</button>
         </div>

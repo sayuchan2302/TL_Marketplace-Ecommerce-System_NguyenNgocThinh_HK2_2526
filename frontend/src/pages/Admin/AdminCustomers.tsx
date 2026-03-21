@@ -1,5 +1,5 @@
 import './Admin.css';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Search, Eye, Ban, X, Mail, Download, Gift, ChevronDown, Sparkles, Link2, Trash2 } from 'lucide-react';
 import AdminLayout from './AdminLayout';
@@ -210,25 +210,6 @@ const tabs = [
 
 const validCustomerTabs = new Set(tabs.map((tab) => tab.key));
 
-const tierOptions = [
-  { value: 'all', label: 'Tất cả hạng' },
-  { value: 'Bronze', label: 'Bronze' },
-  { value: 'Silver', label: 'Silver' },
-  { value: 'Gold', label: 'Gold' },
-  { value: 'Diamond', label: 'Diamond' },
-];
-
-const spendingOptions = [
-  { value: 'all', label: 'Tất cả chi tiêu' },
-  { value: 'under1m', label: 'Dưới 1 triệu' },
-  { value: '1m-5m', label: '1 - 5 triệu' },
-  { value: '5m-10m', label: '5 - 10 triệu' },
-  { value: '10m+', label: 'Trên 10 triệu' },
-];
-
-const validTierFilters = new Set(tierOptions.map((option) => option.value));
-const validSpendingFilters = new Set(spendingOptions.map((option) => option.value));
-
 const tierToClass: Record<LoyaltyTier, string> = {
   Bronze: 'tier-bronze',
   Silver: 'tier-silver',
@@ -278,6 +259,26 @@ const isVipCustomer = (c: Customer) => c.tier === 'Gold' || c.tier === 'Diamond'
 const AdminCustomers = () => {
   const t = ADMIN_TEXT.customers;
   const c = ADMIN_TEXT.common;
+  const tf = t.filters;
+  
+  const tierOptions = useMemo(() => [
+    { value: 'all', label: tf.tierAll },
+    { value: 'Bronze', label: 'Bronze' },
+    { value: 'Silver', label: 'Silver' },
+    { value: 'Gold', label: 'Gold' },
+    { value: 'Diamond', label: 'Diamond' },
+  ], [tf.tierAll]);
+
+  const spendingOptions = useMemo(() => [
+    { value: 'all', label: tf.spendAll },
+    { value: 'under1m', label: tf.spendUnder1m },
+    { value: '1m-5m', label: tf.spend1m5m },
+    { value: '5m-10m', label: tf.spend5m10m },
+    { value: '10m+', label: tf.spend10mPlus },
+  ], [tf.spendAll, tf.spendUnder1m, tf.spend1m5m, tf.spend5m10m, tf.spend10mPlus]);
+
+  const validTierFilters = useMemo(() => new Set(tierOptions.map((option) => option.value)), [tierOptions]);
+  const validSpendingFilters = useMemo(() => new Set(spendingOptions.map((option) => option.value)), [spendingOptions]);
   const view = useAdminViewState({
     storageKey: ADMIN_VIEW_KEYS.customers,
     path: '/admin/customers',
@@ -302,6 +303,40 @@ const AdminCustomers = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<CustomerDeleteConfirmState | null>(null);
   const { toast, pushToast } = useAdminToast(2300);
   const filterDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  const handleFilterKeyDown = useCallback((e: React.KeyboardEvent, filterType: 'tier' | 'spending') => {
+    const options = filterType === 'tier' ? tierOptions : spendingOptions;
+    const currentFilter = filterType === 'tier' ? tierFilter : spendingFilter;
+    const currentIndex = options.findIndex(o => o.value === currentFilter);
+
+    const applyFilter = (value: string) => {
+      setSelected(new Set());
+      setOpenFilter(null);
+      view.setExtra(filterType, value);
+    };
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        const nextIndex = currentIndex < options.length - 1 ? currentIndex + 1 : 0;
+        applyFilter(options[nextIndex].value);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : options.length - 1;
+        applyFilter(options[prevIndex].value);
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        setOpenFilter(openFilter === filterType ? null : filterType);
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setOpenFilter(null);
+        break;
+    }
+  }, [tierOptions, spendingOptions, tierFilter, spendingFilter, openFilter, view]);
 
   const {
     search,
@@ -534,7 +569,7 @@ const AdminCustomers = () => {
         <div className="customer-actions" ref={filterDropdownRef}>
           <div className="admin-search">
             <Search size={16} />
-            <input placeholder={t.searchPlaceholder} value={search} onChange={(e) => handleSearchChange(e.target.value)} />
+            <input placeholder={t.searchPlaceholder} aria-label={t.searchPlaceholder} value={search} onChange={(e) => handleSearchChange(e.target.value)} />
           </div>
 
           <button className="admin-ghost-btn" onClick={shareCurrentView}><Link2 size={16} /> {ADMIN_COMMON_LABELS.shareView}</button>
@@ -545,16 +580,35 @@ const AdminCustomers = () => {
           </button>
 
           <div className="admin-filter-dropdown-wrap">
-            <button className="admin-filter-trigger" onClick={() => setOpenFilter((p) => (p === 'tier' ? null : 'tier'))}>
+            <button 
+              className="admin-filter-trigger" 
+              onClick={() => setOpenFilter((p) => (p === 'tier' ? null : 'tier'))}
+              onKeyDown={(e) => handleFilterKeyDown(e, 'tier')}
+              aria-haspopup="listbox"
+              aria-expanded={openFilter === 'tier'}
+            >
               <Sparkles size={15} />
               <span>{tierFilterLabel}</span>
               <ChevronDown size={14} className={openFilter === 'tier' ? 'rotate' : ''} />
             </button>
             <AnimatePresence>
               {openFilter === 'tier' && (
-                <motion.div className="admin-filter-menu" initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.98 }} transition={{ duration: 0.18 }}>
+                <motion.div 
+                  className="admin-filter-menu" 
+                  role="listbox"
+                  initial={{ opacity: 0, y: 8, scale: 0.98 }} 
+                  animate={{ opacity: 1, y: 0, scale: 1 }} 
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }} 
+                  transition={{ duration: 0.18 }}
+                >
                   {tierOptions.map((option) => (
-                    <button key={option.value} className={`admin-filter-item ${tierFilter === option.value ? 'active' : ''}`} onClick={() => changeTierFilter(option.value as 'all' | LoyaltyTier)}>
+                    <button 
+                      key={option.value} 
+                      className={`admin-filter-item ${tierFilter === option.value ? 'active' : ''}`} 
+                      onClick={() => changeTierFilter(option.value as 'all' | LoyaltyTier)}
+                      role="option"
+                      aria-selected={tierFilter === option.value}
+                    >
                       {option.label}
                     </button>
                   ))}
@@ -564,16 +618,35 @@ const AdminCustomers = () => {
           </div>
 
           <div className="admin-filter-dropdown-wrap">
-            <button className="admin-filter-trigger" onClick={() => setOpenFilter((p) => (p === 'spending' ? null : 'spending'))}>
+            <button 
+              className="admin-filter-trigger" 
+              onClick={() => setOpenFilter((p) => (p === 'spending' ? null : 'spending'))}
+              onKeyDown={(e) => handleFilterKeyDown(e, 'spending')}
+              aria-haspopup="listbox"
+              aria-expanded={openFilter === 'spending'}
+            >
               <Sparkles size={15} />
               <span>{spendingFilterLabel}</span>
               <ChevronDown size={14} className={openFilter === 'spending' ? 'rotate' : ''} />
             </button>
             <AnimatePresence>
               {openFilter === 'spending' && (
-                <motion.div className="admin-filter-menu" initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.98 }} transition={{ duration: 0.18 }}>
+                <motion.div 
+                  className="admin-filter-menu" 
+                  role="listbox"
+                  initial={{ opacity: 0, y: 8, scale: 0.98 }} 
+                  animate={{ opacity: 1, y: 0, scale: 1 }} 
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }} 
+                  transition={{ duration: 0.18 }}
+                >
                   {spendingOptions.map((option) => (
-                    <button key={option.value} className={`admin-filter-item ${spendingFilter === option.value ? 'active' : ''}`} onClick={() => changeSpendingFilter(option.value)}>
+                    <button 
+                      key={option.value} 
+                      className={`admin-filter-item ${spendingFilter === option.value ? 'active' : ''}`} 
+                      onClick={() => changeSpendingFilter(option.value)}
+                      role="option"
+                      aria-selected={spendingFilter === option.value}
+                    >
                       {option.label}
                     </button>
                   ))}
@@ -653,7 +726,7 @@ const AdminCustomers = () => {
                 <div role="cell"><span className={`admin-pill ${tierToClass[customer.tier]}`}>{customer.tier}</span></div>
                 <div role="cell" className="admin-bold customer-orders-count">{customer.totalOrders}</div>
                 <div role="cell" className="admin-bold customer-spent">{formatCurrencyVnd(customer.totalSpent)}</div>
-                <div role="cell" className="customer-status-cell"><span className={`admin-pill ${customer.status === 'active' ? 'success' : 'error'}`}>{customer.status === 'active' ? 'Đang hoạt động' : 'Bị khóa'}</span></div>
+                <div role="cell" className="customer-status-cell"><span className={`admin-pill ${customer.status === 'active' ? 'success' : 'error'}`}>{customer.status === 'active' ? t.drawer.status.active : t.drawer.status.banned}</span></div>
                 <div role="cell" className="admin-muted customer-last-order">{formatDate(customer.lastOrder)}</div>
                 <div role="cell" className="admin-actions">
                   <button className="admin-icon-btn subtle" title={ADMIN_ACTION_TITLES.viewDetail} aria-label={ADMIN_ACTION_TITLES.viewDetail} onClick={() => openDrawer(customer, 'activity')}><Eye size={16} /></button>
@@ -800,7 +873,7 @@ const AdminCustomers = () => {
 
       <AdminReasonDialog
         open={Boolean(pendingLockAction)}
-        title={pendingLockAction?.isBulk ? 'Khóa nhiều tài khoản' : 'Khóa tài khoản'}
+        title={pendingLockAction?.isBulk ? t.drawer.lockTitleBulk : t.drawer.lockTitle}
         description="Vui lòng nhập lý do trước khi khóa tài khoản khách hàng."
         fieldLabel="Lý do khóa"
         placeholder="Nhập lý do khóa tài khoản..."

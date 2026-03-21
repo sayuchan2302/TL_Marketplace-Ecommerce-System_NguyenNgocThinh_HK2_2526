@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useRef } from 'react';
 
 interface AdminConfirmDialogProps {
   open: boolean;
@@ -27,6 +28,45 @@ const AdminConfirmDialog = ({
   onConfirm,
   onCancel,
 }: AdminConfirmDialogProps) => {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusableElements = dialog.querySelectorAll<HTMLElement>(focusableSelector);
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    firstElement?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement?.focus();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement?.focus();
+          }
+        }
+      }
+      if (e.key === 'Escape') {
+        onCancel();
+      }
+    };
+
+    dialog.addEventListener('keydown', handleKeyDown);
+    return () => dialog.removeEventListener('keydown', handleKeyDown);
+  }, [open, onCancel]);
+
   const selectedList = selectedItems || [];
   const hasSelectedItems = selectedList.length > 0;
   const visibleItems = selectedList.slice(0, maxVisibleItems);
@@ -45,6 +85,7 @@ const AdminConfirmDialog = ({
             transition={{ duration: 0.18 }}
           />
           <motion.div
+            ref={dialogRef}
             className="confirm-modal"
             role="dialog"
             aria-modal="true"
@@ -70,7 +111,7 @@ const AdminConfirmDialog = ({
             )}
 
             <div className="confirm-modal-actions">
-              <button className="admin-ghost-btn" onClick={onCancel}>{cancelLabel}</button>
+              <button ref={cancelBtnRef} className="admin-ghost-btn" onClick={onCancel}>{cancelLabel}</button>
               <button className={`admin-primary-btn ${danger ? 'danger' : ''}`.trim()} onClick={onConfirm}>{confirmLabel}</button>
             </div>
           </motion.div>

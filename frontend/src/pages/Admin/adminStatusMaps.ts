@@ -9,9 +9,12 @@ export const productStatusTone = (type: ProductStatusType | string) => {
 export type PromotionStatus = 'running' | 'expired' | 'paused';
 
 export const promotionStatusLabel = (status: PromotionStatus) => {
-  if (status === 'running') return 'Đang chạy';
-  if (status === 'paused') return 'Tạm dừng';
-  return 'Hết hạn';
+  const labels: Record<PromotionStatus, string> = {
+    running: 'Đang chạy',
+    paused: 'Tạm dừng',
+    expired: 'Hết hạn',
+  };
+  return labels[status];
 };
 
 export const promotionStatusClass = (status: PromotionStatus) => {
@@ -29,8 +32,11 @@ export const customerOrderStatusTone = (status: CustomerOrderStatus) => {
 };
 
 export const customerOrderStatusLabel = (status: CustomerOrderStatus) => {
-  if (status === 'done') return 'Hoàn tất';
-  if (status === 'shipping') return 'Đang giao';
-  if (status === 'pending') return 'Chờ xác nhận';
-  return 'Đã hủy';
+  const labels: Record<CustomerOrderStatus, string> = {
+    pending: 'Chờ xác nhận',
+    shipping: 'Đang giao',
+    done: 'Hoàn tất',
+    canceled: 'Đã hủy',
+  };
+  return labels[status];
 };

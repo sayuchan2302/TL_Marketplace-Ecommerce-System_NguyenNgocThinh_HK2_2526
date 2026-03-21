@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface AdminReasonDialogProps {
@@ -35,12 +35,49 @@ const AdminReasonDialog = ({
   onCancel,
 }: AdminReasonDialogProps) => {
   const [reason, setReason] = useState(defaultValue);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       setReason(defaultValue);
     }
   }, [open, defaultValue]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusableElements = dialog.querySelectorAll<HTMLElement>(focusableSelector);
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    firstElement?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement?.focus();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement?.focus();
+          }
+        }
+      }
+      if (e.key === 'Escape') {
+        onCancel();
+      }
+    };
+
+    dialog.addEventListener('keydown', handleKeyDown);
+    return () => dialog.removeEventListener('keydown', handleKeyDown);
+  }, [open, onCancel]);
 
   const selectedList = selectedItems || [];
   const visibleItems = selectedList.slice(0, maxVisibleItems);
@@ -59,6 +96,7 @@ const AdminReasonDialog = ({
             transition={{ duration: 0.18 }}
           />
           <motion.div
+            ref={dialogRef}
             className="confirm-modal"
             role="dialog"
             aria-modal="true"

@@ -2,6 +2,7 @@ import './Admin.css';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutGrid, Search, Bell, Settings, ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { ADMIN_TEXT } from './adminText';
 
 interface AdminLayoutProps {
   title: ReactNode;
@@ -11,28 +12,29 @@ interface AdminLayoutProps {
 }
 
 const navItems = [
-  { label: 'Tổng quan', to: '/admin' },
-  { label: 'Đơn hàng', to: '/admin/orders' },
-  { label: 'Sản phẩm', to: '/admin/products' },
-  { label: 'Danh mục', to: '/admin/categories' },
-  { label: 'Khách hàng', to: '/admin/customers' },
-  { label: 'Khuyến mãi', to: '/admin/promotions' },
-  { label: 'Nội dung', to: '/admin/content' },
-  { label: 'Cấu hình', to: '/admin/settings' },
+  { label: ADMIN_TEXT.layout.nav.dashboard, to: '/admin' },
+  { label: ADMIN_TEXT.layout.nav.orders, to: '/admin/orders' },
+  { label: ADMIN_TEXT.layout.nav.products, to: '/admin/products' },
+  { label: ADMIN_TEXT.layout.nav.categories, to: '/admin/categories' },
+  { label: ADMIN_TEXT.layout.nav.customers, to: '/admin/customers' },
+  { label: ADMIN_TEXT.layout.nav.promotions, to: '/admin/promotions' },
+  { label: ADMIN_TEXT.layout.nav.content, to: '/admin/content' },
+  { label: ADMIN_TEXT.layout.nav.settings, to: '/admin/settings' },
 ];
 
 const AdminLayout = ({ title, actions, children, hideTopbarTitle = false }: AdminLayoutProps) => {
   const location = useLocation();
+  const t = ADMIN_TEXT.layout;
 
   const breadcrumbs = () => {
     const path = location.pathname;
-    if (path.startsWith('/admin/orders/')) return ['Đơn hàng', 'Chi tiết'];
-    if (path.startsWith('/admin/orders')) return ['Đơn hàng', 'Danh sách'];
-    if (path.startsWith('/admin/products')) return ['Sản phẩm', 'Danh sách'];
-    if (path.startsWith('/admin/categories')) return ['Danh mục', 'Danh sách'];
-    if (path.startsWith('/admin/customers') || path.startsWith('/admin/customer')) return ['Khách hàng', 'Danh sách'];
-    if (path.startsWith('/admin/promotions')) return ['Khuyến mãi', 'Danh sách'];
-    return ['Tổng quan'];
+    if (path.startsWith('/admin/orders/')) return [t.nav.orders, t.breadcrumbs.orderDetail];
+    if (path.startsWith('/admin/orders')) return [t.nav.orders, t.breadcrumbs.orderList];
+    if (path.startsWith('/admin/products')) return [t.nav.products, t.breadcrumbs.productList];
+    if (path.startsWith('/admin/categories')) return [t.nav.categories, t.breadcrumbs.categoryList];
+    if (path.startsWith('/admin/customers') || path.startsWith('/admin/customer')) return [t.nav.customers, t.breadcrumbs.customerList];
+    if (path.startsWith('/admin/promotions')) return [t.nav.promotions, t.breadcrumbs.promoList];
+    return [t.nav.dashboard];
   };
 
   const crumbs = breadcrumbs();
@@ -42,7 +44,7 @@ const AdminLayout = ({ title, actions, children, hideTopbarTitle = false }: Admi
       <aside className="admin-sidebar">
         <div className="admin-logo">
           <LayoutGrid size={22} />
-          <span>Admin</span>
+          <span>{t.logo}</span>
         </div>
         <nav className="admin-nav">
           {navItems.map((item) => {
@@ -62,8 +64,8 @@ const AdminLayout = ({ title, actions, children, hideTopbarTitle = false }: Admi
           })}
         </nav>
         <div className="admin-sidebar-card">
-          <p>Thiết lập gateway thanh toán, phí ship, email thông báo.</p>
-          <Link to="/admin/settings" className="admin-sidebar-btn">Cấu hình ngay</Link>
+          <p>{t.sidebar.description}</p>
+          <Link to="/admin/settings" className="admin-sidebar-btn">{t.sidebar.cta}</Link>
         </div>
       </aside>
 
@@ -80,20 +82,20 @@ const AdminLayout = ({ title, actions, children, hideTopbarTitle = false }: Admi
 
           <div className="admin-header-search">
             <Search size={16} />
-            <input placeholder="Tìm nhanh đơn hàng, sản phẩm..." />
+            <input placeholder={t.searchPlaceholder} aria-label={t.searchPlaceholder} />
           </div>
 
           <div className="admin-header-actions">
-            <button className="admin-icon-btn subtle has-dot" aria-label="Thông báo">
+            <button className="admin-icon-btn subtle has-dot" aria-label={t.notifications}>
               <Bell size={16} />
               <span className="notif-dot" />
             </button>
-            <button className="admin-icon-btn subtle" aria-label="Cài đặt">
+            <button className="admin-icon-btn subtle" aria-label={t.settings}>
               <Settings size={16} />
             </button>
             <div className="admin-avatar">
               <span className="avatar-circle">A</span>
-              <span className="avatar-name">Admin</span>
+              <span className="avatar-name">{t.adminName}</span>
             </div>
           </div>
         </header>

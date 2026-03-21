@@ -431,7 +431,7 @@ const AdminPromotions = () => {
         <>
           <div className="admin-search">
             <Search size={16} />
-            <input placeholder={t.searchPlaceholder} value={search} onChange={(e) => handleSearchChange(e.target.value)} />
+            <input placeholder={t.searchPlaceholder} aria-label={t.searchPlaceholder} value={search} onChange={(e) => handleSearchChange(e.target.value)} />
           </div>
           <button type="button" className="admin-ghost-btn" onClick={() => pushToast(ADMIN_TOAST_MESSAGES.promoTypeFilterComingSoon)}><Tag size={16} /> {t.promoType}</button>
           <button className="admin-ghost-btn" onClick={shareCurrentView}><Link2 size={16} /> {ADMIN_COMMON_LABELS.shareView}</button>
@@ -461,7 +461,7 @@ const AdminPromotions = () => {
 
       {hasViewContext && (
         <div className="admin-view-summary">
-          <span className="summary-chip">{c.status}: {statusFilterLabel}</span>
+          <span className="summary-chip">{c.statusLabel}: {statusFilterLabel}</span>
           {search.trim() && <span className="summary-chip">{c.keyword}: {search.trim()}</span>}
           <button className="summary-clear" onClick={resetCurrentView}>{c.clearFilters}</button>
         </div>

@@ -2,7 +2,7 @@ import './Admin.css';
 import { Link } from 'react-router-dom';
 import { Filter, Search, Truck, Eye, Printer, Link2, CheckCircle2 } from 'lucide-react';
 import AdminLayout from './AdminLayout';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   canTransitionFulfillment,
@@ -87,6 +87,7 @@ const validStatusKeysArray = Array.from(validStatusKeys);
 const AdminOrders = () => {
   const t = ADMIN_TEXT.orders;
   const c = ADMIN_TEXT.common;
+  const aria = useMemo(() => c.aria, []);
   const view = useAdminViewState({
     storageKey: ADMIN_VIEW_KEYS.orders,
     path: '/admin/orders',
@@ -234,7 +235,7 @@ const AdminOrders = () => {
         <>
           <div className="admin-search">
             <Search size={16} />
-            <input placeholder={t.searchPlaceholder} value={search} onChange={e => handleSearchChange(e.target.value)} />
+            <input placeholder={t.searchPlaceholder} aria-label={t.searchPlaceholder} value={search} onChange={e => handleSearchChange(e.target.value)} />
           </div>
           <button className="admin-ghost-btn" onClick={() => pushToast(ADMIN_TOAST_MESSAGES.advancedFilterComingSoon)}><Filter size={16} /> {c.filter}</button>
           <button className="admin-ghost-btn" onClick={shareCurrentView}><Link2 size={16} /> {ADMIN_COMMON_LABELS.shareView}</button>
@@ -257,7 +258,7 @@ const AdminOrders = () => {
 
       {hasViewContext && (
         <div className="admin-view-summary">
-          <span className="summary-chip">{c.status}: {activeTabLabel}</span>
+          <span className="summary-chip">{c.statusLabel}: {activeTabLabel}</span>
           {search.trim() && <span className="summary-chip">{c.keyword}: {search.trim()}</span>}
           <button className="summary-clear" onClick={resetCurrentView}>{c.clearFilters}</button>
         </div>
@@ -285,7 +286,7 @@ const AdminOrders = () => {
               <div role="columnheader">
                 <input
                   type="checkbox"
-                  aria-label="Chọn tất cả"
+                  aria-label={aria.selectAll}
                   checked={selected.size === filteredOrders.length && filteredOrders.length > 0}
                   onChange={e => toggleAll(e.target.checked)}
                 />
@@ -311,7 +312,7 @@ const AdminOrders = () => {
                 <div role="cell">
                   <input
                     type="checkbox"
-                    aria-label={`Chọn ${order.code}`}
+                    aria-label={aria.selectItem(order.code)}
                     checked={selected.has(order.code)}
                     onChange={e => toggleOne(order.code, e.target.checked)}
                   />
