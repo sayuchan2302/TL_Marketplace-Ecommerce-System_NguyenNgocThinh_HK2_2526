@@ -1,8 +1,11 @@
 import './Admin.css';
-import { Link, useLocation } from 'react-router-dom';
-import { LayoutGrid, Search, Bell, Settings, ChevronRight } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutGrid, Search, Bell, Settings, ChevronRight, LogOut, Home, User } from 'lucide-react';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { ADMIN_TEXT } from './adminText';
+import { authService } from '../../services/authService';
+import { useToast } from '../../contexts/ToastContext';
 
 interface AdminLayoutProps {
   title: ReactNode;
@@ -24,7 +27,24 @@ const navItems = [
 
 const AdminLayout = ({ title, actions, children, hideTopbarTitle = false }: AdminLayoutProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const t = ADMIN_TEXT.layout;
+
+  const adminSession = authService.getAdminSession();
+  const adminUser = adminSession?.user;
+
+  const handleLogout = () => {
+    authService.adminLogout();
+    addToast('Đã đăng xuất', 'info');
+    navigate('/');
+  };
+
+  const handleGoHome = () => {
+    setIsDropdownOpen(false);
+    navigate('/');
+  };
 
   const breadcrumbs = () => {
     const path = location.pathname;
@@ -93,9 +113,38 @@ const AdminLayout = ({ title, actions, children, hideTopbarTitle = false }: Admi
             <button className="admin-icon-btn subtle" aria-label={t.settings}>
               <Settings size={16} />
             </button>
-            <div className="admin-avatar">
-              <span className="avatar-circle">A</span>
-              <span className="avatar-name">{t.adminName}</span>
+            <div 
+              className="admin-avatar-wrapper"
+              onMouseEnter={() => setIsDropdownOpen(true)}
+              onMouseLeave={() => setIsDropdownOpen(false)}
+            >
+              <button className="admin-avatar-btn">
+                <span className="avatar-circle">{adminUser?.avatar || adminUser?.name?.charAt(0).toUpperCase() || 'A'}</span>
+                <span className="avatar-name">{adminUser?.name || t.adminName}</span>
+              </button>
+              <div className={`admin-avatar-dropdown ${isDropdownOpen ? 'show' : ''}`}>
+                <div className="admin-dropdown-header">
+                  <span className="admin-dropdown-avatar">{adminUser?.avatar || adminUser?.name?.charAt(0).toUpperCase() || 'A'}</span>
+                  <div className="admin-dropdown-info">
+                    <span className="admin-dropdown-name">{adminUser?.name || 'Admin'}</span>
+                    <span className="admin-dropdown-email">{adminUser?.email || 'admin@gmail.com'}</span>
+                  </div>
+                </div>
+                <div className="admin-dropdown-divider"></div>
+                <button className="admin-dropdown-item" onClick={handleGoHome}>
+                  <Home size={16} />
+                  Quay về trang chủ
+                </button>
+                <button className="admin-dropdown-item" onClick={() => { setIsDropdownOpen(false); navigate('/admin'); }}>
+                  <User size={16} />
+                  Tài khoản của tôi
+                </button>
+                <div className="admin-dropdown-divider"></div>
+                <button className="admin-dropdown-item logout" onClick={handleLogout}>
+                  <LogOut size={16} />
+                  Đăng xuất
+                </button>
+              </div>
             </div>
           </div>
         </header>
