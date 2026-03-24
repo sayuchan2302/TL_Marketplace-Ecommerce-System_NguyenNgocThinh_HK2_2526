@@ -10,7 +10,7 @@ import vn.edu.hcmuaf.fit.fashionstore.dto.response.AuthResponse;
 import vn.edu.hcmuaf.fit.fashionstore.service.AuthService;
 
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
