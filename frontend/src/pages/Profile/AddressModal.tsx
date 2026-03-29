@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { X, ChevronDown } from 'lucide-react';
 import { addressService } from '../../services/addressService';
 import { useAddressLocation } from '../../hooks/useAddressLocation';
+import { useToast } from '../../contexts/ToastContext';
 import type { Address } from '../../types';
 
 interface AddressModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave?: () => void;
+  onSave?: () => void | Promise<void>;
   editingAddress?: Address | null;
 }
 
@@ -34,27 +35,31 @@ const buildInitialDraft = (editingAddress?: Address | null): AddressData => ({
 const AddressModalForm = ({ onClose, onSave, editingAddress }: Omit<AddressModalProps, 'isOpen'>) => {
   const initialDraft = useMemo(() => buildInitialDraft(editingAddress), [editingAddress]);
   const [draft, setDraft] = useState<AddressData>(initialDraft);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { addToast } = useToast();
   const addressLocation = useAddressLocation({ loadOnMount: true });
+  const { clearSelection, setLocationByNames } = addressLocation;
 
   useEffect(() => {
     if (!editingAddress) {
-      addressLocation.clearSelection();
+      clearSelection();
       return;
     }
 
-    addressLocation.setLocationByNames(
+    setLocationByNames(
       editingAddress.province,
       editingAddress.district,
       editingAddress.ward,
     );
-  }, [addressLocation, editingAddress]);
+  }, [clearSelection, setLocationByNames, editingAddress]);
 
   const updateDraft = <K extends keyof AddressData>(key: K, value: AddressData[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     const addressData = {
       fullName: draft.fullName,
@@ -66,15 +71,23 @@ const AddressModalForm = ({ onClose, onSave, editingAddress }: Omit<AddressModal
       isDefault: draft.isDefault,
     };
 
-    if (editingAddress?.id) {
-      addressService.update(editingAddress.id, addressData);
-    } else {
-      addressService.add(addressData);
+    try {
+      setIsSubmitting(true);
+      if (editingAddress?.id) {
+        await addressService.updateOnBackend(editingAddress.id, addressData);
+      } else {
+        await addressService.addOnBackend(addressData);
+      }
+      await onSave?.();
+      clearSelection();
+      onClose();
+      addToast(editingAddress ? 'Đã cập nhật địa chỉ' : 'Đã thêm địa chỉ mới', 'success');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Không thể lưu địa chỉ. Vui lòng thử lại.';
+      addToast(message, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onSave?.();
-    addressLocation.clearSelection();
-    onClose();
   };
 
   return (
@@ -206,7 +219,7 @@ const AddressModalForm = ({ onClose, onSave, editingAddress }: Omit<AddressModal
             </label>
 
             <button type="submit" className="modal-submit-btn">
-              {editingAddress ? 'CẬP NHẬT' : 'LƯU ĐỊA CHỈ'}
+              {isSubmitting ? 'ĐANG LƯU...' : editingAddress ? 'CẬP NHẬT' : 'LƯU ĐỊA CHỈ'}
             </button>
           </form>
         </div>

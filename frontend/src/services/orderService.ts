@@ -114,7 +114,7 @@ const mapBackendOrderToShared = (order: BackendOrderResponse): SharedOrder => {
     parentOrderId: order.subOrderId || undefined,
     storeId: order.storeId || undefined,
     storeName: order.storeName || undefined,
-    customerName: order.shippingAddress?.fullName || order.customer?.name || 'Khach hang',
+    customerName: order.shippingAddress?.fullName || order.customer?.name || 'Khách hàng',
     customerEmail: order.customer?.email || '',
     customerPhone: order.shippingAddress?.phone || order.customer?.phone || '',
     customerAvatar: 'KH',
@@ -141,7 +141,7 @@ const mapBackendOrderToShared = (order: BackendOrderResponse): SharedOrder => {
     timeline: [
       {
         time: new Date(order.createdAt || Date.now()).toLocaleString('vi-VN'),
-        text: 'Don hang da duoc tao tren backend marketplace.',
+        text: 'Đơn hàng đã được tạo trên backend marketplace.',
         tone: 'success',
       },
     ],

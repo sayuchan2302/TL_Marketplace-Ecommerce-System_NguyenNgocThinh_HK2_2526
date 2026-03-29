@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { useToast } from './ToastContext';
+import { authService } from '../services/authService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type CartItem = {
@@ -48,6 +49,12 @@ const STORAGE_KEY = 'coolmate_cart_v1';
 const FREE_SHIPPING_THRESHOLD = 500000;
 const DEFAULT_SHIPPING_FEE = 30000;
 
+const buildLoginRedirectTarget = () => {
+  if (typeof window === 'undefined') return '/login';
+  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  return `/login?reason=${encodeURIComponent('auth-required')}&redirect=${encodeURIComponent(current)}`;
+};
+
 // ─── Grouping Logic ────────────────────────────────────────────────────────────
 const groupByStore = (items: CartItem[]): StoreGroup[] => {
   const groups = items.reduce((acc, item) => {
@@ -89,6 +96,24 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   });
   const { addToast } = useToast();
 
+  const ensureAuthenticated = () => {
+    const session = authService.getSession() || authService.getAdminSession();
+    const token = session?.token;
+    const isValid = Boolean(
+      token
+      && authService.isBackendJwtToken(token)
+      && !authService.isJwtExpired(token),
+    );
+
+    if (isValid) return true;
+
+    addToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.', 'info');
+    if (typeof window !== 'undefined') {
+      window.location.href = buildLoginRedirectTarget();
+    }
+    return false;
+  };
+
   // Persist to localStorage whenever cart changes
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
@@ -97,6 +122,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const addToCart = (
     newItem: Omit<CartItem, 'cartId' | 'quantity'> & { quantity?: number }
   ) => {
+    if (!ensureAuthenticated()) {
+      return;
+    }
+
     const cartId = `${newItem.id}-${newItem.color}-${newItem.size}`;
     const qty = newItem.quantity ?? 1;
 

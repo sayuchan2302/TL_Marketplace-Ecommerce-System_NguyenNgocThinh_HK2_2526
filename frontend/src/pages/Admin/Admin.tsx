@@ -23,10 +23,12 @@ import {
   type AdminDashboardParentOrder,
   type AdminDashboardTopCategory,
 } from '../../services/adminDashboardService';
-import { resolveDetailRouteKey, toDisplayCode } from '../../utils/displayCode';
+import {
+  resolveDetailRouteKey,
+  toDisplayOrderCode,
+} from '../../utils/displayCode';
 
 const formatCurrency = (value: number) => `${(value || 0).toLocaleString('vi-VN')} ₫`;
-const ORDER_CODE_FALLBACK = 'DH-DANG-DONG-BO';
 
 const formatShortDate = (isoDate: string) => {
   const date = new Date(isoDate);
@@ -387,7 +389,7 @@ const Admin = () => {
                     alt={order.customerName}
                   />
                   <div>
-                    <p className="admin-bold">{toDisplayCode(order.code, ORDER_CODE_FALLBACK)}</p>
+                    <p className="admin-bold">{toDisplayOrderCode(order.code)}</p>
                     <span>{order.customerName}</span>
                   </div>
                 </div>

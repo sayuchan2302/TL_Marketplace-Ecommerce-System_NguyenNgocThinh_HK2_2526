@@ -15,6 +15,8 @@ interface ProtectedRouteProps {
   animation?: AnimationPreset;
   fallbackPath?: string;
   showUnauthorized?: boolean;
+  redirectUnauthenticatedToLogin?: boolean;
+  redirectUnauthorizedToLogin?: boolean;
 }
 
 interface UnauthenticatedFallbackProps {
@@ -130,6 +132,8 @@ const ProtectedRoute = ({
   animation = 'fade',
   fallbackPath,
   showUnauthorized = true,
+  redirectUnauthenticatedToLogin = false,
+  redirectUnauthorizedToLogin = false,
 }: ProtectedRouteProps) => {
   const { isAuthenticated, user, token } = useAuth();
   const location = useLocation();
@@ -140,6 +144,9 @@ const ProtectedRoute = ({
   );
 
   if (!isAuthenticated) {
+    if (redirectUnauthenticatedToLogin) {
+      return redirectToLogin('unauthorized');
+    }
     if (fallbackPath) {
       return <Navigate to={fallbackPath} replace state={{ from: currentPath }} />;
     }
@@ -150,6 +157,11 @@ const ProtectedRoute = ({
     const userRole = user?.role;
 
     if (!userRole || !allowedRoles.includes(userRole)) {
+      if (redirectUnauthorizedToLogin) {
+        authService.logout('unauthorized');
+        authService.adminLogout('unauthorized');
+        return redirectToLogin('unauthorized');
+      }
       if (fallbackPath) {
         return <Navigate to={fallbackPath} replace />;
       }

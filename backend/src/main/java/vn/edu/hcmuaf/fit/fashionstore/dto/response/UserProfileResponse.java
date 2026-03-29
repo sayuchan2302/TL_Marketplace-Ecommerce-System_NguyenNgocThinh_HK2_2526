@@ -7,29 +7,23 @@ import lombok.NoArgsConstructor;
 import vn.edu.hcmuaf.fit.fashionstore.entity.User;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AdminUserResponse {
-
+public class UserProfileResponse {
     private UUID id;
     private String name;
     private String email;
     private String phone;
+    private String avatar;
     private User.Gender gender;
     private LocalDate dateOfBirth;
+    private Integer height;
+    private Integer weight;
     private Long loyaltyPoints;
-    private String role;
-    private String status;
-    private Boolean isActive;
-    private LocalDateTime createdAt;
-
+    private User.Role role;
     private UUID storeId;
-    private String storeName;
-    private String storeApprovalStatus;
-    private String storeStatus;
 }

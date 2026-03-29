@@ -25,7 +25,10 @@ import { vendorVoucherService } from '../../services/vendorVoucherService';
 import { useToast } from '../../contexts/ToastContext';
 import { getUiErrorMessage } from '../../utils/errorMessage';
 import { AdminStateBlock } from '../Admin/AdminStateBlocks';
-import { resolveDetailRouteKey, toDisplayCode } from '../../utils/displayCode';
+import {
+  resolveDetailRouteKey,
+  toDisplayOrderCode,
+} from '../../utils/displayCode';
 
 const initialData: VendorDashboardData = {
   stats: {
@@ -40,8 +43,6 @@ const initialData: VendorDashboardData = {
   recentOrders: [],
   topProducts: [],
 };
-
-const ORDER_CODE_FALLBACK = 'DH-DANG-DONG-BO';
 
 const VendorDashboard = () => {
   const { addToast } = useToast();
@@ -313,7 +314,7 @@ const VendorDashboard = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.18, delay: 0.22 + idx * 0.03 }}
                 >
-                  <div role="cell" style={{ fontWeight: 700 }}>{toDisplayCode(order.code, ORDER_CODE_FALLBACK)}</div>
+                  <div role="cell" style={{ fontWeight: 700 }}>{toDisplayOrderCode(order.code)}</div>
                   <div role="cell">{order.customer}</div>
                   <div role="cell" style={{ fontWeight: 700 }}>{formatCurrency(order.total)}</div>
                   <div role="cell" style={{ color: '#d97706', fontSize: 13 }}>-{formatCurrency(order.commissionFee)}</div>

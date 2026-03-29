@@ -36,6 +36,20 @@ const roleLabel = (role: UserRole) => {
   return 'Quản trị viên';
 };
 
+const genderLabel = (gender?: UserRecord['gender']) => {
+  if (gender === 'MALE') return 'Nam';
+  if (gender === 'FEMALE') return 'Nữ';
+  if (gender === 'OTHER') return 'Khác';
+  return 'Chưa cập nhật';
+};
+
+const formatDob = (dateOfBirth?: string) => {
+  if (!dateOfBirth) return 'Chưa cập nhật';
+  const parsed = new Date(`${dateOfBirth}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return 'Chưa cập nhật';
+  return parsed.toLocaleDateString('vi-VN');
+};
+
 const statusLabel = (status: UserStatus) => {
   if (status === 'ACTIVE') return 'Đang hoạt động';
   if (status === 'LOCKED') return 'Đã khóa';
@@ -350,6 +364,7 @@ const AdminUsers = () => {
                         <div className="admin-bold">{user.name || 'Chưa cập nhật tên'}</div>
                         <div className="admin-muted small">{user.email}</div>
                         <div className="admin-muted small">{user.phone || 'Chưa có số điện thoại'}</div>
+                        <div className="admin-muted small">{genderLabel(user.gender)} • {formatDob(user.dateOfBirth)}</div>
                       </div>
                     </div>
                     <div role="cell">
@@ -484,6 +499,18 @@ const AdminUsers = () => {
                   <div className="admin-card-row">
                     <span className="admin-bold">Điện thoại</span>
                     <span className="admin-muted">{detailUser.phone || 'Chưa có số điện thoại'}</span>
+                  </div>
+                  <div className="admin-card-row">
+                    <span className="admin-bold">Giới tính</span>
+                    <span className="admin-muted">{genderLabel(detailUser.gender)}</span>
+                  </div>
+                  <div className="admin-card-row">
+                    <span className="admin-bold">Ngày sinh</span>
+                    <span className="admin-muted">{formatDob(detailUser.dateOfBirth)}</span>
+                  </div>
+                  <div className="admin-card-row">
+                    <span className="admin-bold">Điểm tích lũy</span>
+                    <span className="admin-muted">{(detailUser.loyaltyPoints ?? 0).toLocaleString('vi-VN')} điểm</span>
                   </div>
                   <div className="admin-card-row">
                     <span className="admin-bold">Ngày tham gia</span>

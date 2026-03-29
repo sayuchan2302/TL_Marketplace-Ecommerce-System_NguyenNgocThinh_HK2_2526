@@ -283,7 +283,7 @@ const AdminProducts = () => {
   const handleVariantsSaved = async (matrix: VariantRow[]) => {
     const result = await applyVariantMatrix(MANAGED_PRODUCT_SKU, matrix);
     if (!result.ok) {
-      pushToast(result.error || 'Khong the dong bo bien the', 2200);
+      pushToast(result.error || 'Không thể đồng bộ biến thể', 2200);
       return;
     }
     setVariantRows(matrix);

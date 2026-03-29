@@ -113,13 +113,13 @@ public class MarketplaceSeeder implements ApplicationRunner {
     private void seedMarketplace() {
         log.info("Bat dau nap du lieu mau marketplace...");
 
-        User admin = createUser("admin@fashion.local", "Quản trị hệ thống", "0900000001", User.Role.SUPER_ADMIN);
-        User vendorAn = createUser("an.shop@fashion.local", "Nguyễn Hoàng An", "0900000002", User.Role.VENDOR);
-        User vendorBinh = createUser("binh.store@fashion.local", "Trần Gia Bình", "0900000003", User.Role.VENDOR);
-        User vendorDuyet = createUser("duyet.vendor@fashion.local", "Lê Thanh Duyệt", "0900000004", User.Role.VENDOR);
-        User customerMinh = createUser("minh.customer@fashion.local", "Phạm Minh Khang", "0901000001", User.Role.CUSTOMER);
-        User customerLan = createUser("lan.customer@fashion.local", "Đỗ Ngọc Lan", "0901000002", User.Role.CUSTOMER);
-        User customerHuy = createUser("huy.customer@fashion.local", "Vũ Đức Huy", "0901000003", User.Role.CUSTOMER);
+        User admin = createUser("admin@fashion.local", "Quản trị hệ thống", "0900000001", User.Role.SUPER_ADMIN, User.Gender.OTHER, LocalDate.of(1990, 1, 1), 0L);
+        User vendorAn = createUser("an.shop@fashion.local", "Nguyễn Hoàng An", "0900000002", User.Role.VENDOR, User.Gender.MALE, LocalDate.of(1994, 5, 12), 0L);
+        User vendorBinh = createUser("binh.store@fashion.local", "Trần Gia Bình", "0900000003", User.Role.VENDOR, User.Gender.FEMALE, LocalDate.of(1995, 8, 22), 0L);
+        User vendorDuyet = createUser("duyet.vendor@fashion.local", "Lê Thanh Duyệt", "0900000004", User.Role.VENDOR, User.Gender.MALE, LocalDate.of(1992, 11, 6), 0L);
+        User customerMinh = createUser("minh.customer@fashion.local", "Phạm Minh Khang", "0901000001", User.Role.CUSTOMER, User.Gender.MALE, LocalDate.of(2000, 3, 14), 4200L);
+        User customerLan = createUser("lan.customer@fashion.local", "Đỗ Ngọc Lan", "0901000002", User.Role.CUSTOMER, User.Gender.FEMALE, LocalDate.of(1999, 9, 9), 5100L);
+        User customerHuy = createUser("huy.customer@fashion.local", "Vũ Đức Huy", "0901000003", User.Role.CUSTOMER, User.Gender.MALE, LocalDate.of(2001, 1, 25), 1600L);
 
         Store storeAn = createStore(
                 vendorAn, "An Urban", "an-urban",
@@ -280,13 +280,24 @@ public class MarketplaceSeeder implements ApplicationRunner {
         log.info("Da xoa toan bo du lieu cu truoc khi seed.");
     }
 
-    private User createUser(String email, String name, String phone, User.Role role) {
+    private User createUser(
+            String email,
+            String name,
+            String phone,
+            User.Role role,
+            User.Gender gender,
+            LocalDate dateOfBirth,
+            Long loyaltyPoints
+    ) {
         User user = new User();
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(TEST_PASSWORD));
         user.setName(name);
         user.setPhone(phone);
         user.setRole(role);
+        user.setGender(gender);
+        user.setDateOfBirth(dateOfBirth);
+        user.setLoyaltyPoints(loyaltyPoints != null ? loyaltyPoints : 0L);
         user.setStoreId(null);
         user.setIsActive(true);
         return userRepository.save(user);

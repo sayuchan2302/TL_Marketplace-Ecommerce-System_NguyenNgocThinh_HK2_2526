@@ -50,6 +50,8 @@ export interface ReturnListResponse {
   number: number;
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export const returnService = {
   async submit(payload: ReturnSubmitPayload): Promise<ReturnRequest> {
     return apiRequest<ReturnRequest>('/api/returns', {
@@ -67,10 +69,17 @@ export const returnService = {
     return apiRequest<ReturnListResponse>(`/api/returns${qs ? `?${qs}` : ''}`, {}, { auth: true });
   },
 
-  async getAdmin(id: string): Promise<ReturnRequest> {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
-    const path = isUuid ? `/api/returns/${id}` : `/api/returns/code/${encodeURIComponent(id)}`;
+  async getAdminByIdentifier(identifier: string): Promise<ReturnRequest> {
+    const normalized = String(identifier || '').trim();
+    const path = UUID_PATTERN.test(normalized)
+      ? `/api/returns/${normalized}`
+      : `/api/returns/code/${encodeURIComponent(normalized)}`;
     return apiRequest<ReturnRequest>(path, {}, { auth: true });
+  },
+
+  // Backward compatible alias.
+  async getAdmin(id: string): Promise<ReturnRequest> {
+    return this.getAdminByIdentifier(id);
   },
 
   async updateStatus(id: string, status: ReturnStatus, adminNote?: string): Promise<ReturnRequest> {

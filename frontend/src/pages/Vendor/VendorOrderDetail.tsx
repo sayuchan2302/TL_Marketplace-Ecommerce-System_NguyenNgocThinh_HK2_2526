@@ -11,7 +11,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { getUiErrorMessage } from '../../utils/errorMessage';
 import { AdminStateBlock } from '../Admin/AdminStateBlocks';
 import { copyTextToClipboard } from './vendorHelpers';
-import { toDisplayCode } from '../../utils/displayCode';
+import { toDisplayOrderCode } from '../../utils/displayCode';
 
 const emptyOrder: VendorOrderDetailData = {
   id: '',
@@ -34,8 +34,6 @@ const emptyOrder: VendorOrderDetailData = {
   vendorPayout: 0,
   timeline: [],
 };
-
-const ORDER_CODE_FALLBACK = 'DH-DANG-DONG-BO';
 
 const VendorOrderDetail = () => {
   const { id = '' } = useParams();
@@ -98,7 +96,7 @@ const VendorOrderDetail = () => {
   };
 
   const handleCopyOrderId = async () => {
-    const copied = await copyTextToClipboard(toDisplayCode(order.code, ORDER_CODE_FALLBACK));
+    const copied = await copyTextToClipboard(toDisplayOrderCode(order.code));
     addToast(copied ? 'Đã sao chép mã đơn hàng' : 'Không thể sao chép mã đơn hàng', copied ? 'success' : 'error');
   };
 
@@ -145,7 +143,7 @@ const VendorOrderDetail = () => {
 
   return (
     <VendorLayout
-      title={`Đơn hàng #${toDisplayCode(order.code, ORDER_CODE_FALLBACK)}`}
+      title={`Đơn hàng #${toDisplayOrderCode(order.code)}`}
       breadcrumbs={['Kênh Người Bán', 'Đơn hàng', 'Chi tiết']}
       actions={(
         <div className="admin-actions">
@@ -297,7 +295,7 @@ const VendorOrderDetail = () => {
                 <div className="od-card-row">
                   <span className="od-label">Mã đơn hàng</span>
                   <div className="tracking-value">
-                    <strong>{toDisplayCode(order.code, ORDER_CODE_FALLBACK)}</strong>
+                    <strong>{toDisplayOrderCode(order.code)}</strong>
                     <button className="admin-icon-btn subtle" aria-label="Sao chép mã đơn" onClick={() => void handleCopyOrderId()}>
                       <Copy size={14} />
                     </button>

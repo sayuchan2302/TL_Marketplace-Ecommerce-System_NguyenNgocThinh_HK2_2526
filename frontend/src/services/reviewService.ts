@@ -28,6 +28,7 @@ export interface Review {
 
 export interface EligibleReviewItem {
   orderId: string;
+  orderCode?: string;
   productId: string;
   productName: string;
   productImage: string;
@@ -68,6 +69,7 @@ interface BackendReviewResponse {
 
 interface BackendEligibleReviewItem {
   orderId?: string;
+  orderCode?: string;
   productId?: string;
   productName?: string;
   productImage?: string;
@@ -122,6 +124,7 @@ const mapBackendReview = (row: BackendReviewResponse): Review => {
 
 const mapBackendEligibleReview = (row: BackendEligibleReviewItem): EligibleReviewItem => ({
   orderId: String(row.orderId || ''),
+  orderCode: row.orderCode || undefined,
   productId: String(row.productId || ''),
   productName: row.productName || 'Sản phẩm',
   productImage: row.productImage || '',

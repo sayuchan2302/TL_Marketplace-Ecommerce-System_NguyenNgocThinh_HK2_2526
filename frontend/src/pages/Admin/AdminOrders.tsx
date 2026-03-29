@@ -25,7 +25,10 @@ import {
 import { PanelStatsGrid, PanelTabs } from '../../components/Panel/PanelPrimitives';
 import Portal from '../../components/Portal/Portal';
 import { getUiErrorMessage } from '../../utils/errorMessage';
-import { resolveDetailRouteKey, toDisplayCode } from '../../utils/displayCode';
+import {
+  resolveDetailRouteKey,
+  toDisplayOrderCode,
+} from '../../utils/displayCode';
 
 interface AdminOrderRow {
   id: string;
@@ -71,8 +74,7 @@ const mapOrderRecordToRow = (order: AdminOrderRecord): AdminOrderRow => {
   };
 };
 
-const ORDER_CODE_FALLBACK = 'DH-DANG-DONG-BO';
-const displayOrderCode = (code: string) => toDisplayCode(code, ORDER_CODE_FALLBACK);
+const displayOrderCode = (code: string) => toDisplayOrderCode(code);
 
 
 const tone = (status: string) => {
@@ -239,7 +241,7 @@ const AdminOrders = () => {
 
   const handleApproveOrder = async (code: string) => {
     if (!code) {
-      pushToast('Don hang nay chua duoc cap ma cong khai.');
+      pushToast('Đơn hàng này chưa được cấp mã công khai.');
       return;
     }
     const result = await transitionAdminOrder({

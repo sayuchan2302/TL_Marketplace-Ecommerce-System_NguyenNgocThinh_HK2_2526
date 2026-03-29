@@ -21,7 +21,10 @@ import { getUiErrorMessage } from '../../utils/errorMessage';
 import { AdminStateBlock, AdminTableSkeleton } from '../Admin/AdminStateBlocks';
 import AdminConfirmDialog from '../Admin/AdminConfirmDialog';
 import { copyTextToClipboard, normalizePositiveInteger } from './vendorHelpers';
-import { resolveDetailRouteKey, toDisplayCode } from '../../utils/displayCode';
+import {
+  resolveDetailRouteKey,
+  toDisplayOrderCode,
+} from '../../utils/displayCode';
 
 type VendorOrderTab =
   | 'all'
@@ -46,8 +49,6 @@ type PendingAction = {
 };
 
 const PAGE_SIZE = 8;
-const ORDER_CODE_FALLBACK = 'DH-DANG-DONG-BO';
-
 const TABS: Array<{ key: VendorOrderTab; label: string }> = [
   { key: 'all', label: 'Tất cả' },
   { key: 'pending', label: 'Chờ xác nhận' },
@@ -330,7 +331,7 @@ const VendorOrders = () => {
       confirmLabel: meta.confirmLabel,
       requireTracking: meta.requireTracking,
       requireReason: meta.requireReason,
-      selectedItems: selectedOrders.map((order) => toDisplayCode(order.code, ORDER_CODE_FALLBACK)),
+      selectedItems: selectedOrders.map((order) => toDisplayOrderCode(order.code)),
     });
   };
 
@@ -558,7 +559,7 @@ const VendorOrders = () => {
                           onChange={(event) => toggleOne(order.id, event.target.checked)}
                         />
                       </div>
-                      <div className="admin-bold">{toDisplayCode(order.code, ORDER_CODE_FALLBACK)}</div>
+                      <div className="admin-bold">{toDisplayOrderCode(order.code)}</div>
                       <div>
                         <div className="admin-bold">{order.customer}</div>
                         <div className="admin-muted small">{order.email}</div>

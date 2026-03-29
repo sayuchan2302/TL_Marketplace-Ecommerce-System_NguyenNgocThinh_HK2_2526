@@ -189,9 +189,9 @@ export const listAdminOrders = async (): Promise<AdminOrderRecord[]> => {
   return (data || []).map(mapBackendToAdmin);
 };
 
-export const getAdminOrderByCode = async (code: string): Promise<AdminOrderRecord | null> => {
+export const getAdminOrderByIdentifier = async (identifier: string): Promise<AdminOrderRecord | null> => {
   try {
-    const normalized = String(code || '').trim();
+    const normalized = String(identifier || '').trim();
     if (!normalized) {
       return null;
     }

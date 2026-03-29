@@ -6,6 +6,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { getReasonToastMessage, getUiErrorMessage } from '../../utils/errorMessage';
 
+const handledReasonKeys = new Set<string>();
+
 const Login = () => {
   const { login } = useAuth();
   const { addToast } = useToast();
@@ -26,11 +28,32 @@ const Login = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const reasonMessage = getReasonToastMessage(params.get('reason'));
+    const reason = params.get('reason');
+    if (!reason) {
+      return;
+    }
+
+    const reasonKey = `${reason}|${params.get('redirect') || ''}`;
+    if (handledReasonKeys.has(reasonKey)) {
+      return;
+    }
+    handledReasonKeys.add(reasonKey);
+
+    const reasonMessage = getReasonToastMessage(reason);
     if (reasonMessage) {
       addToast(reasonMessage, 'error');
     }
-  }, [location.search, addToast]);
+
+    params.delete('reason');
+    const nextSearch = params.toString();
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : '',
+      },
+      { replace: true },
+    );
+  }, [location.pathname, location.search, addToast, navigate]);
 
   const validate = () => {
     const next: typeof errors = {};
@@ -116,4 +139,3 @@ const Login = () => {
 };
 
 export default Login;
-

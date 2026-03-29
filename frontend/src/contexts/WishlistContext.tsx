@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { useToast } from './ToastContext';
+import { authService } from '../services/authService';
 
 interface WishlistItem {
   id: string;
@@ -20,11 +21,39 @@ interface WishlistContextType {
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
+const buildLoginRedirectTarget = () => {
+  if (typeof window === 'undefined') return '/login';
+  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  return `/login?reason=${encodeURIComponent('auth-required')}&redirect=${encodeURIComponent(current)}`;
+};
+
 export const WishlistProvider = ({ children }: { children: ReactNode }) => {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const { addToast } = useToast();
 
+  const ensureAuthenticated = () => {
+    const session = authService.getSession() || authService.getAdminSession();
+    const token = session?.token;
+    const isValid = Boolean(
+      token
+      && authService.isBackendJwtToken(token)
+      && !authService.isJwtExpired(token),
+    );
+
+    if (isValid) return true;
+
+    addToast('Vui lòng đăng nhập để dùng danh sách yêu thích.', 'info');
+    if (typeof window !== 'undefined') {
+      window.location.href = buildLoginRedirectTarget();
+    }
+    return false;
+  };
+
   const addToWishlist = (item: WishlistItem) => {
+    if (!ensureAuthenticated()) {
+      return;
+    }
+
     const existing = items.find(i => i.id === item.id);
     if (!existing) {
       setItems(prev => [...prev, item]);

@@ -121,8 +121,9 @@ export function useAddressLocation(options: UseAddressLocationOptions = {}): Use
     setSelectedProvinceName('');
     setSelectedDistrictName('');
     setSelectedWardName('');
-    setDistricts([]);
-    setWards([]);
+    // Keep this idempotent to avoid re-render loops when called repeatedly.
+    setDistricts((prev) => (prev.length === 0 ? prev : []));
+    setWards((prev) => (prev.length === 0 ? prev : []));
   }, []);
 
   const setLocationByNames = useCallback(async (provinceName: string, districtName: string, wardName: string) => {

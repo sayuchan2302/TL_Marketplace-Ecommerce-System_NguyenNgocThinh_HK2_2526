@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, ShoppingCart, Heart, Menu, X, ChevronDown, Bell, Store, LayoutGrid } from 'lucide-react';
-import AuthModal from '../AuthModal/AuthModal';
 import SearchDropdown from '../SearchDropdown/SearchDropdown';
 import NotificationDropdown from '../NotificationDropdown/NotificationDropdown';
 import { useCartAnimation } from '../../context/CartAnimationContext';
@@ -27,8 +26,6 @@ const Header = () => {
   const { isAuthenticated, user, logout } = useAuth();
   const { addToast } = useToast();
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const { unreadCount } = useNotifications();
 
@@ -261,9 +258,9 @@ const handleSearchSubmit = (query: string) => {
           <div className="auth-links">
             {!isAuthenticated ? (
               <div className="auth-links">
-                <a href="#" className="auth-link" onClick={(e) => { e.preventDefault(); setAuthTab('login'); setIsAuthModalOpen(true); }}>Đăng nhập</a>
+                <Link to="/login" className="auth-link">Đăng nhập</Link>
                 <span className="auth-divider">/</span>
-                <a href="#" className="auth-link" onClick={(e) => { e.preventDefault(); setAuthTab('register'); setIsAuthModalOpen(true); }}>Đăng ký</a>
+                <Link to="/register" className="auth-link">Đăng ký</Link>
               </div>
             ) : (
               <div 
@@ -439,8 +436,8 @@ const handleSearchSubmit = (query: string) => {
         <div className="mobile-auth">
           {!isAuthenticated ? (
             <>
-              <button className="mobile-auth-btn" onClick={() => { setAuthTab('login'); setIsAuthModalOpen(true); closeMobileMenu(); }}>Đăng nhập</button>
-              <button className="mobile-auth-btn mobile-auth-register" onClick={() => { setAuthTab('register'); setIsAuthModalOpen(true); closeMobileMenu(); }}>Đăng ký</button>
+              <button className="mobile-auth-btn" onClick={() => { navigate('/login'); closeMobileMenu(); }}>Đăng nhập</button>
+              <button className="mobile-auth-btn mobile-auth-register" onClick={() => { navigate('/register'); closeMobileMenu(); }}>Đăng ký</button>
             </>
           ) : (
             <>
@@ -473,12 +470,6 @@ const handleSearchSubmit = (query: string) => {
           <Link to="/returns" onClick={closeMobileMenu}><Search size={18} /> Đổi / Trả hàng</Link>
         </div>
       </div>
-
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        initialTab={authTab}
-      />
     </header>
   );
 };

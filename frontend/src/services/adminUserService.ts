@@ -2,12 +2,16 @@ import { apiRequest } from './apiClient';
 
 export type AdminUserRole = 'CUSTOMER' | 'VENDOR' | 'SUPER_ADMIN';
 export type AdminUserStatus = 'ACTIVE' | 'LOCKED' | 'PENDING_VENDOR';
+export type AdminUserGender = 'MALE' | 'FEMALE' | 'OTHER';
 
 export interface AdminUserRecord {
   id: string;
   name: string;
   email: string;
   phone: string;
+  gender?: AdminUserGender;
+  dateOfBirth?: string;
+  loyaltyPoints?: number;
   role: AdminUserRole;
   status: AdminUserStatus;
   isActive: boolean;

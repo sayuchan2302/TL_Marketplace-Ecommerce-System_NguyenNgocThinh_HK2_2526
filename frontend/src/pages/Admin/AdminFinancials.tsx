@@ -24,7 +24,8 @@ type ConfirmState = {
   storeNames: string[];
 };
 
-const formatCurrency = (value: number) => `${value.toLocaleString('vi-VN')} ₫`;
+const formatCurrency = (value: number) =>
+  value.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
 const STORE_REF_FALLBACK = 'chua-co-slug';
 const toStoreRef = (record: WalletResponse) => `@${record.storeSlug?.trim() || STORE_REF_FALLBACK}`;
 

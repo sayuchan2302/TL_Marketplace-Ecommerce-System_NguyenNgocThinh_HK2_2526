@@ -12,9 +12,7 @@ import { adminReviewService, type Review, type ReviewStatus } from './adminRevie
 import { ADMIN_VIEW_KEYS } from './adminListView';
 import AdminConfirmDialog from './AdminConfirmDialog';
 import Drawer from '../../components/Drawer/Drawer';
-import { toDisplayCode } from '../../utils/displayCode';
-
-const ORDER_CODE_FALLBACK = 'DH-DANG-DONG-BO';
+import { toDisplayOrderCode } from '../../utils/displayCode';
 
 const normalizeStatus = (status?: string | null): ReviewStatus => {
   const normalized = status?.toLowerCase();
@@ -327,7 +325,7 @@ const AdminReviews = () => {
                         <img src={review.productImage} alt={review.productName} />
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span className="admin-bold">{review.productName}</span>
-                          <span className="admin-muted small">Order #{toDisplayCode(review.orderCode, ORDER_CODE_FALLBACK)}</span>
+                          <span className="admin-muted small">Order #{toDisplayOrderCode(review.orderCode)}</span>
                         </div>
                       </div>
                     </div>
@@ -400,7 +398,7 @@ const AdminReviews = () => {
                   <img src={drawerReview.productImage} alt={drawerReview.productName} style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover', border: '1px solid #e2e8f0' }} />
                   <div>
                     <p className="admin-bold" style={{ margin: 0 }}>{drawerReview.productName}</p>
-                    <p className="admin-muted small" style={{ margin: 0 }}>Mã đơn hàng: #{toDisplayCode(drawerReview.orderCode, ORDER_CODE_FALLBACK)}</p>
+                    <p className="admin-muted small" style={{ margin: 0 }}>Mã đơn hàng: #{toDisplayOrderCode(drawerReview.orderCode)}</p>
                   </div>
                 </div>
               </section>

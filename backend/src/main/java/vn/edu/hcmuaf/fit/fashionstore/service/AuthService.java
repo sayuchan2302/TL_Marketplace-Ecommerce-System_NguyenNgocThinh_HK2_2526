@@ -56,6 +56,8 @@ public class AuthService {
                 .name(request.getName())
                 .phone(request.getPhone())
                 .role(User.Role.CUSTOMER)
+                .gender(User.Gender.OTHER)
+                .loyaltyPoints(0L)
                 .isActive(true)
                 .build();
 

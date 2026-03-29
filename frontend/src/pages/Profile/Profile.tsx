@@ -9,8 +9,6 @@ import {
   ChevronRight,
   LogOut,
   X,
-  Calendar,
-  ChevronDown,
   Lock,
   Eye,
   EyeOff,
@@ -37,6 +35,8 @@ import { addressService } from '../../services/addressService';
 import { orderService } from '../../services/orderService';
 import { reviewService, type EligibleReviewItem, type Review as CustomerReview } from '../../services/reviewService';
 import { couponService, type Coupon } from '../../services/couponService';
+import { profileService, type UserProfileRecord } from '../../services/profileService';
+import { authService } from '../../services/authService';
 import { calculateTier, TIER_CONFIG, getProgressToNextTier, getSpendRequiredForNextTier, getNextTier } from '../../utils/tierUtils';
 import { formatPrice } from '../../utils/formatters';
 import type { Address } from '../../types';
@@ -54,6 +54,7 @@ interface PendingProduct {
   productName: string;
   productImage: string;
   orderId: string;
+  orderCode?: string;
   variant: string;
 }
 
@@ -68,21 +69,33 @@ const mapEligibleReview = (item: EligibleReviewItem): PendingProduct => {
     productName: item.productName,
     productImage: item.productImage || 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=80&h=80&fit=crop',
     orderId: item.orderId,
+    orderCode: item.orderCode,
     variant: details || 'Đơn hàng đã giao',
   };
+};
+
+const GENDER_LABEL: Record<'MALE' | 'FEMALE' | 'OTHER', string> = {
+  MALE: 'Nam',
+  FEMALE: 'Nữ',
+  OTHER: 'Khác',
 };
 
 const Profile = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { logout } = useAuth();
+  const { logout, user: authUser } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
   const [isLoading, setIsLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [, setAddressVersion] = useState(0);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfileRecord | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
+  const [addressesLoading, setAddressesLoading] = useState(false);
+  const [addressesError, setAddressesError] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const activeTab = useMemo(() => {
     const tabParam = searchParams.get('tab');
@@ -104,6 +117,15 @@ const Profile = () => {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [height, setHeight] = useState('163');
   const [weight, setWeight] = useState('57');
+  const [accountName, setAccountName] = useState('');
+  const [accountPhone, setAccountPhone] = useState('');
+  const [accountGender, setAccountGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('OTHER');
+  const [accountDateOfBirth, setAccountDateOfBirth] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -111,12 +133,7 @@ const Profile = () => {
 
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
-  const savedAddresses = activeTab === 'addresses' ? addressService.getAll() : [];
   const [voucherWallet, setVoucherWallet] = useState<Coupon[]>([]);
-
-  const refreshAddresses = () => {
-    setAddressVersion((prev) => prev + 1);
-  };
 
   const handleEditAddress = (address: Address) => {
     setEditingAddress(address);
@@ -141,6 +158,22 @@ const Profile = () => {
       ? allOrders.find((order) => order.id === orderId || order.code === orderId) || null
       : null;
   })();
+  const orderCodeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allOrders.forEach((order) => {
+      if (order.id && order.code) {
+        map.set(order.id, order.code);
+      }
+    });
+    return map;
+  }, [allOrders]);
+  const getOrderDisplayCode = useCallback(
+    (orderId: string, orderCode?: string) => {
+      const code = (orderCode || orderCodeMap.get(orderId) || '').trim();
+      return code || 'Đang cập nhật mã đơn';
+    },
+    [orderCodeMap],
+  );
   const [orderFilter, setOrderFilter] = useState('Tất cả');
 
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -195,7 +228,7 @@ const Profile = () => {
     setSelectedOrderId(null);
   };
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     try {
       setOrdersLoading(true);
       setOrdersError(null);
@@ -208,21 +241,86 @@ const Profile = () => {
     } finally {
       setOrdersLoading(false);
     }
-  };
+  }, []);
 
-  // Placeholder user data
-  const user = {
-    name: "Ngọc Thịnh Nguyễn",
-    phone: "0382253049",
-    gender: "Nam",
-    dob: "23/02/2004",
-    height: "163 cm",
-    weight: "57 kg",
-    email: "thinh23022004@gmail.com",
-    avatar: "N",
-    totalSpent: 3500000, // 3.5M VND
-    points: 3500,
-  };
+  const syncAuthSession = useCallback((nextProfile: UserProfileRecord) => {
+    const existingSession = authService.getSession() || authService.getAdminSession();
+    if (!existingSession) return;
+
+    const mergedUser = {
+      ...existingSession.user,
+      name: nextProfile.name || existingSession.user.name,
+      email: nextProfile.email || existingSession.user.email,
+      phone: nextProfile.phone || undefined,
+      avatar: nextProfile.avatar || existingSession.user.avatar,
+      role: nextProfile.role || existingSession.user.role,
+      storeId: nextProfile.storeId || existingSession.user.storeId,
+    };
+
+    authService.updateSession(mergedUser);
+  }, []);
+
+  const loadProfile = useCallback(async () => {
+    try {
+      setProfileLoading(true);
+      setProfileError(null);
+      const nextProfile = await profileService.getMyProfile();
+      setProfile(nextProfile);
+      syncAuthSession(nextProfile);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Không thể tải hồ sơ tài khoản.';
+      setProfileError(message);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [syncAuthSession]);
+
+  const loadAddresses = useCallback(async () => {
+    try {
+      setAddressesLoading(true);
+      setAddressesError(null);
+      const rows = await addressService.listFromBackend();
+      setSavedAddresses(rows);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Không thể tải danh sách địa chỉ.';
+      setAddressesError(message);
+      setSavedAddresses([]);
+    } finally {
+      setAddressesLoading(false);
+    }
+  }, []);
+
+  const totalSpent = useMemo(
+    () => allOrders
+      .filter((order) => order.status === 'delivered')
+      .reduce((sum, order) => sum + order.total, 0),
+    [allOrders],
+  );
+  const pointsFromOrders = Math.round(totalSpent / 1000);
+
+  const user = useMemo(() => {
+    const name = profile?.name || authUser?.name || 'Khách hàng';
+    const email = profile?.email || authUser?.email || '';
+    const phone = profile?.phone || authUser?.phone || '';
+    const avatar = profile?.avatar || authUser?.avatar || name.charAt(0).toUpperCase();
+    const dateOfBirthLabel = profile?.dateOfBirth
+      ? new Date(`${profile.dateOfBirth}T00:00:00`).toLocaleDateString('vi-VN')
+      : 'Chưa cập nhật';
+    const loyaltyPoints = (profile?.loyaltyPoints ?? 0) > 0 ? (profile?.loyaltyPoints ?? 0) : pointsFromOrders;
+
+    return {
+      name,
+      phone: phone || 'Chưa cập nhật',
+      gender: GENDER_LABEL[profile?.gender || 'OTHER'],
+      dob: dateOfBirthLabel,
+      height: profile?.height ? `${profile.height} cm` : 'Chưa cập nhật',
+      weight: profile?.weight ? `${profile.weight} kg` : 'Chưa cập nhật',
+      email: email || 'Chưa cập nhật',
+      avatar,
+      totalSpent,
+      points: loyaltyPoints,
+    };
+  }, [authUser, pointsFromOrders, profile, totalSpent]);
 
   const currentTier = calculateTier(user.totalSpent);
   const nextTier = getNextTier(currentTier);
@@ -245,11 +343,23 @@ const Profile = () => {
   }, []);
 
   useEffect(() => {
+    void loadProfile();
+    void loadOrders();
+  }, [loadOrders, loadProfile]);
+
+  useEffect(() => {
     if (activeTab !== 'orders') {
       return;
     }
     void loadOrders();
-  }, [activeTab]);
+  }, [activeTab, loadOrders]);
+
+  useEffect(() => {
+    if (activeTab !== 'addresses') {
+      return;
+    }
+    void loadAddresses();
+  }, [activeTab, loadAddresses]);
 
   useEffect(() => {
     if (activeTab !== 'vouchers') {
@@ -282,6 +392,18 @@ const Profile = () => {
   }, [activeTab, loadReviews]);
 
   useEffect(() => {
+    if (!isAccountModalOpen) {
+      return;
+    }
+    setAccountName(profile?.name || authUser?.name || '');
+    setAccountPhone(profile?.phone || authUser?.phone || '');
+    setAccountGender(profile?.gender || 'OTHER');
+    setAccountDateOfBirth(profile?.dateOfBirth || '');
+    setHeight(String(profile?.height ?? 163));
+    setWeight(String(profile?.weight ?? 57));
+  }, [authUser, isAccountModalOpen, profile]);
+
+  useEffect(() => {
     const anyModalOpen = isAccountModalOpen || isPasswordModalOpen || isAddressModalOpen || isReviewModalOpen || !!selectedOrder;
     if (anyModalOpen) {
       document.body.classList.add('modal-open');
@@ -297,6 +419,84 @@ const Profile = () => {
     navigate('/');
   };
 
+  const closePasswordModal = () => {
+    setIsPasswordModalOpen(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowOldPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+  };
+
+  const handleAccountSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isSavingProfile) return;
+
+    try {
+      setIsSavingProfile(true);
+      const parsedHeight = Number(height);
+      const parsedWeight = Number(weight);
+      const nextProfile = await profileService.updateMyProfile({
+        name: accountName,
+        phone: accountPhone,
+        gender: accountGender,
+        dateOfBirth: accountDateOfBirth || null,
+        height: Number.isFinite(parsedHeight) ? parsedHeight : null,
+        weight: Number.isFinite(parsedWeight) ? parsedWeight : null,
+      });
+      setProfile(nextProfile);
+      syncAuthSession(nextProfile);
+      setIsAccountModalOpen(false);
+      addToast('Đã cập nhật thông tin tài khoản', 'success');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Không thể cập nhật hồ sơ.';
+      addToast(message, 'error');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isChangingPassword) return;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      addToast('Vui lòng nhập đầy đủ thông tin mật khẩu.', 'error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      addToast('Mật khẩu mới và xác nhận mật khẩu chưa khớp.', 'error');
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      await profileService.changePassword({
+        currentPassword,
+        newPassword,
+      });
+      closePasswordModal();
+      addToast('Đổi mật khẩu thành công', 'success');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Không thể đổi mật khẩu.';
+      addToast(message, 'error');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleRemoveAddress = async (addressId: string) => {
+    try {
+      await addressService.removeOnBackend(addressId);
+      await loadAddresses();
+      addToast('Đã xóa địa chỉ', 'success');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Không thể xóa địa chỉ.';
+      addToast(message, 'error');
+    }
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'account':
@@ -305,6 +505,8 @@ const Profile = () => {
             <div className="profile-content-header mb-6">
               <h2 className="profile-content-title">Thông tin tài khoản</h2>
             </div>
+            {profileLoading ? <p className="account-meta">Đang tải hồ sơ tài khoản...</p> : null}
+            {profileError ? <p className="account-meta">{profileError}</p> : null}
 
             <div className="account-info-form">
               {/* Personal Info */}
@@ -546,14 +748,16 @@ const Profile = () => {
             
             <div className="address-book-content">
               <h3 className="address-book-subtitle">Sổ địa chỉ</h3>
+              {addressesLoading ? <p className="account-meta">Đang tải danh sách địa chỉ...</p> : null}
+              {addressesError ? <p className="account-meta">{addressesError}</p> : null}
               
-              {savedAddresses.length === 0 ? (
+              {!addressesLoading && savedAddresses.length === 0 ? (
                 <EmptyState 
                   icon={<MapPin size={80} strokeWidth={1} />}
                   title="Sổ địa chỉ trống"
                   description="Bạn chưa có địa chỉ nào được lưu. Thêm địa chỉ để quá trình đặt hàng nhanh chóng hơn."
                 />
-              ) : (
+              ) : !addressesLoading ? (
                 <div className="address-list">
                   {savedAddresses.map((addr) => (
                     <div key={addr.id} className="address-card">
@@ -577,11 +781,7 @@ const Profile = () => {
                         </button>
                         <button 
                           className="address-card-delete" 
-                          onClick={() => {
-                            addressService.remove(addr.id);
-                            refreshAddresses();
-                            addToast('Đã xóa địa chỉ', 'success');
-                          }}
+                          onClick={() => void handleRemoveAddress(addr.id)}
                           aria-label="Xóa địa chỉ"
                         >
                           <Trash2 size={16} />
@@ -590,7 +790,7 @@ const Profile = () => {
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         );
@@ -643,7 +843,7 @@ const Profile = () => {
                           <div className="review-product-info">
                             <p className="review-product-name">{product.productName}</p>
                             <p className="review-product-variant">{product.variant}</p>
-                            <p className="review-product-order">Đơn hàng: #{product.orderId}</p>
+                            <p className="review-product-order">Đơn hàng: #{getOrderDisplayCode(product.orderId, product.orderCode)}</p>
                           </div>
                         </div>
                         <button 
@@ -680,7 +880,7 @@ const Profile = () => {
                             </div>
                             <div className="review-product-info">
                               <p className="review-product-name">{review.productName}</p>
-                              <p className="review-product-variant">Đơn hàng: #{review.orderId}</p>
+                              <p className="review-product-variant">Đơn hàng: #{getOrderDisplayCode(review.orderId, review.orderCode)}</p>
                             </div>
                           </div>
                           <span className="review-date">{new Date(review.createdAt).toLocaleDateString('vi-VN')}</span>
@@ -803,10 +1003,10 @@ const Profile = () => {
           <div className="loyalty-top">
             <div className="loyalty-left">
               <div className="loyalty-avatar">
-                {user.avatar ? (
+                {user.avatar && /^https?:\/\//.test(user.avatar) ? (
                   <img src={user.avatar} alt={user.name} />
                 ) : (
-                  <span>{user.name.charAt(0).toUpperCase()}</span>
+                  <span>{(user.name.charAt(0) || 'U').toUpperCase()}</span>
                 )}
               </div>
               <div className="loyalty-welcome">
@@ -910,53 +1110,20 @@ const Profile = () => {
             </div>
             
             <div className="profile-modal-body">
-              <form className="profile-modal-form" onSubmit={(e) => { e.preventDefault(); setIsAccountModalOpen(false); }}>
+              <form className="profile-modal-form" onSubmit={handleAccountSubmit}>
                 {/* Name Input */}
                 <div className="modal-input-group">
                   <span className="modal-floating-label">Họ và tên</span>
                   <User className="modal-input-icon" size={18} aria-hidden="true" />
-                  <input type="text" className="modal-input" defaultValue={user.name} autoComplete="name" name="name" />
-                </div>
-                
-                {/* DOB Inputs */}
-                <div className="modal-flex-row gap-4">
-                  <div className="modal-input-group">
-                    <span className="modal-floating-label">Ngày</span>
-                    <Calendar className="modal-input-icon" size={18} aria-hidden="true" />
-                    <input type="text" className="modal-input select-arrow-pad" defaultValue="23" autoComplete="bday-day" name="bday-day" aria-label="Ngày sinh" />
-                    <ChevronDown className="modal-select-arrow" size={16} aria-hidden="true" />
-                  </div>
-                  <div className="modal-input-group">
-                    <span className="modal-floating-label">Tháng</span>
-                    <Calendar className="modal-input-icon" size={18} aria-hidden="true" />
-                    <input type="text" className="modal-input select-arrow-pad" defaultValue="2" autoComplete="bday-month" name="bday-month" aria-label="Tháng sinh" />
-                    <ChevronDown className="modal-select-arrow" size={16} aria-hidden="true" />
-                  </div>
-                  <div className="modal-input-group">
-                    <span className="modal-floating-label">Năm</span>
-                    <Calendar className="modal-input-icon" size={18} aria-hidden="true" />
-                    <input type="text" className="modal-input select-arrow-pad" defaultValue="2004" autoComplete="bday-year" name="bday-year" aria-label="Năm sinh" />
-                    <ChevronDown className="modal-select-arrow" size={16} aria-hidden="true" />
-                  </div>
-                </div>
-                
-                {/* Gender Radio */}
-                <div className="modal-flex-row gap-6 items-center">
-                  <label className="modal-radio-label">
-                    <input type="radio" name="gender" value="Nam" defaultChecked />
-                    <span className="radio-custom"></span>
-                    Nam
-                  </label>
-                  <label className="modal-radio-label">
-                    <input type="radio" name="gender" value="Nữ" />
-                    <span className="radio-custom"></span>
-                    Nữ
-                  </label>
-                  <label className="modal-radio-label">
-                    <input type="radio" name="gender" value="Khác" />
-                    <span className="radio-custom"></span>
-                    Không tiết lộ
-                  </label>
+                  <input
+                    type="text"
+                    className="modal-input"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    autoComplete="name"
+                    name="name"
+                    required
+                  />
                 </div>
                 
                 {/* Phone Input */}
@@ -965,7 +1132,59 @@ const Profile = () => {
                   <div className="modal-input-icon">
                     <img src="https://flagcdn.com/w20/vn.png" alt="VN Flag" className="w-5 h-auto rounded-sm" />
                   </div>
-                  <input type="text" className="modal-input" defaultValue={user.phone} />
+                  <input
+                    type="text"
+                    className="modal-input"
+                    value={accountPhone}
+                    onChange={(e) => setAccountPhone(e.target.value)}
+                  />
+                </div>
+
+                <div className="modal-flex-row gap-6 items-center">
+                  <label className="modal-radio-label">
+                    <input
+                      type="radio"
+                      name="gender"
+                      value="MALE"
+                      checked={accountGender === 'MALE'}
+                      onChange={() => setAccountGender('MALE')}
+                    />
+                    <span className="radio-custom"></span>
+                    Nam
+                  </label>
+                  <label className="modal-radio-label">
+                    <input
+                      type="radio"
+                      name="gender"
+                      value="FEMALE"
+                      checked={accountGender === 'FEMALE'}
+                      onChange={() => setAccountGender('FEMALE')}
+                    />
+                    <span className="radio-custom"></span>
+                    Nữ
+                  </label>
+                  <label className="modal-radio-label">
+                    <input
+                      type="radio"
+                      name="gender"
+                      value="OTHER"
+                      checked={accountGender === 'OTHER'}
+                      onChange={() => setAccountGender('OTHER')}
+                    />
+                    <span className="radio-custom"></span>
+                    Khác
+                  </label>
+                </div>
+
+                <div className="modal-input-group">
+                  <span className="modal-floating-label">Ngày sinh</span>
+                  <input
+                    type="date"
+                    className="modal-input"
+                    style={{ paddingLeft: '16px' }}
+                    value={accountDateOfBirth}
+                    onChange={(e) => setAccountDateOfBirth(e.target.value)}
+                  />
                 </div>
                 
                 {/* Height Slider */}
@@ -999,7 +1218,7 @@ const Profile = () => {
                 </div>
                 
                 <button type="submit" className="modal-submit-btn">
-                  CẬP NHẬT THÔNG TIN
+                  {isSavingProfile ? 'ĐANG CẬP NHẬT...' : 'CẬP NHẬT THÔNG TIN'}
                 </button>
               </form>
             </div>
@@ -1009,28 +1228,30 @@ const Profile = () => {
 
       {/* Password Update Modal */}
       {isPasswordModalOpen && (
-        <div className="profile-modal-overlay" onClick={() => setIsPasswordModalOpen(false)}>
+        <div className="profile-modal-overlay" onClick={closePasswordModal}>
           <div className="profile-modal modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="profile-modal-header">
               <div>
                 <p className="profile-modal-eyebrow">Bảo mật</p>
                 <h2>Đổi mật khẩu</h2>
               </div>
-              <button className="profile-modal-close" onClick={() => setIsPasswordModalOpen(false)} aria-label="Đóng">
+              <button className="profile-modal-close" onClick={closePasswordModal} aria-label="Đóng">
                 <X size={18} />
               </button>
             </div>
             
             <div className="profile-modal-body">
-              <form className="profile-modal-form" onSubmit={(e) => { e.preventDefault(); setIsPasswordModalOpen(false); }}>
+              <form className="profile-modal-form" onSubmit={handlePasswordSubmit}>
                 {/* Old Password */}
                 <div className="modal-input-group">
                   <span className="modal-floating-label">Mật khẩu cũ</span>
                   <Lock className="modal-input-icon text-gray-400" size={18} />
                   <input 
-                    type={showOldPassword ? "text" : "password"} 
+                    type={showOldPassword ? "text" : "password"}
                     className="modal-input pr-10" 
-                    defaultValue="password123" 
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    autoComplete="current-password"
                   />
                   <button type="button" onClick={() => setShowOldPassword(!showOldPassword)} className="profile-modal-icon-btn" aria-label={showOldPassword ? "Ẩn mật khẩu" : "Hiển thị mật khẩu"}>
                     {showOldPassword ? <EyeOff className="text-black" size={18} /> : <Eye className="text-black" size={18} />}
@@ -1042,9 +1263,12 @@ const Profile = () => {
                   <span className="modal-floating-label hidden-if-empty">Mật khẩu mới</span>
                   <Lock className="modal-input-icon text-gray-300" size={18} />
                   <input 
-                    type={showNewPassword ? "text" : "password"} 
+                    type={showNewPassword ? "text" : "password"}
                     className="modal-input pr-10 text-gray-400" 
-                    placeholder="Mật khẩu mới" 
+                    placeholder="Mật khẩu mới"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
                   />
                   <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="profile-modal-icon-btn" aria-label={showNewPassword ? "Ẩn mật khẩu" : "Hiển thị mật khẩu"}>
                     {showNewPassword ? <EyeOff className="text-black" size={18} /> : <Eye className="text-black" size={18} />}
@@ -1056,9 +1280,12 @@ const Profile = () => {
                   <span className="modal-floating-label hidden-if-empty">Nhập lại mật khẩu</span>
                   <Lock className="modal-input-icon text-gray-300" size={18} />
                   <input 
-                    type={showConfirmPassword ? "text" : "password"} 
+                    type={showConfirmPassword ? "text" : "password"}
                     className="modal-input pr-10 text-gray-400" 
-                    placeholder="Nhập lại mật khẩu" 
+                    placeholder="Nhập lại mật khẩu"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
                   />
                   <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="profile-modal-icon-btn" aria-label={showConfirmPassword ? "Ẩn mật khẩu" : "Hiển thị mật khẩu"}>
                     {showConfirmPassword ? <EyeOff className="text-black" size={18} /> : <Eye className="text-black" size={18} />}
@@ -1066,7 +1293,7 @@ const Profile = () => {
                 </div>
 
                 <button type="submit" className="modal-submit-btn">
-                  CẬP NHẬT MẬT KHẨU
+                  {isChangingPassword ? 'ĐANG CẬP NHẬT...' : 'CẬP NHẬT MẬT KHẨU'}
                 </button>
               </form>
             </div>
@@ -1078,7 +1305,7 @@ const Profile = () => {
       <AddressModal
         isOpen={isAddressModalOpen}
         onClose={handleCloseAddressModal}
-        onSave={refreshAddresses}
+        onSave={loadAddresses}
         editingAddress={editingAddress}
       />
 

@@ -17,15 +17,13 @@ import AdminConfirmDialog from '../Admin/AdminConfirmDialog';
 import Drawer from '../../components/Drawer/Drawer';
 import { getUiErrorMessage } from '../../utils/errorMessage';
 import { copyTextToClipboard } from './vendorHelpers';
-import { toDisplayCode } from '../../utils/displayCode';
+import { toDisplayOrderCode } from '../../utils/displayCode';
 
 const TABS = [
   { key: 'all', label: 'Tất cả' },
   { key: 'need_reply', label: 'Cần phản hồi' },
   { key: 'negative', label: 'Đánh giá tiêu cực' },
 ] as const;
-
-const ORDER_CODE_FALLBACK = 'DH-DANG-DONG-BO';
 
 const RatingStars = ({ rating }: { rating: number }) => (
   <div className="vendor-rating-stars">
@@ -194,7 +192,7 @@ const VendorReviews = () => {
     .map((id) => {
       const review = reviews.find((item) => item.id === id);
       if (!review) return null;
-      return `${review.productName} - #${toDisplayCode(review.orderCode, ORDER_CODE_FALLBACK)}`;
+      return `${review.productName} - #${toDisplayOrderCode(review.orderCode)}`;
     })
     .filter((label): label is string => Boolean(label));
 
@@ -345,7 +343,7 @@ const VendorReviews = () => {
                     <img src={review.productImage} alt={review.productName} className="vendor-admin-thumb" />
                     <div className="vendor-admin-product-copy">
                       <div className="admin-bold">{review.productName}</div>
-                      <div className="admin-muted small">Đơn #{toDisplayCode(review.orderCode, ORDER_CODE_FALLBACK)}</div>
+                      <div className="admin-muted small">Đơn #{toDisplayOrderCode(review.orderCode)}</div>
                     </div>
                   </div>
                   <div role="cell">
@@ -428,7 +426,7 @@ const VendorReviews = () => {
                 <div className="admin-card-list">
                   <div className="admin-card-row">
                     <span className="admin-bold">Đơn hàng</span>
-                    <span className="admin-muted">#{toDisplayCode(activeReview.orderCode, ORDER_CODE_FALLBACK)}</span>
+                    <span className="admin-muted">#{toDisplayOrderCode(activeReview.orderCode)}</span>
                   </div>
                   <div className="admin-card-row">
                     <span className="admin-bold">Số sao</span>

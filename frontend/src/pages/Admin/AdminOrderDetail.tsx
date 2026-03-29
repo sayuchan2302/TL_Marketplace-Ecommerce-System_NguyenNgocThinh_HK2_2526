@@ -15,7 +15,7 @@ import {
   type PaymentStatus,
 } from './orderWorkflow';
 import {
-  getAdminOrderByCode,
+  getAdminOrderByIdentifier,
   subscribeAdminOrders,
   transitionAdminOrder,
   updateAdminOrderTracking,
@@ -27,10 +27,9 @@ import { ADMIN_DICTIONARY } from './adminDictionary';
 import { calculateCommission, formatCurrency } from '../../services/commissionService';
 import { MARKETPLACE_DICTIONARY } from '../../utils/clientDictionary';
 import { getUiErrorMessage } from '../../utils/errorMessage';
-import { toDisplayCode } from '../../utils/displayCode';
+import { toDisplayOrderCode } from '../../utils/displayCode';
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
-const ORDER_CODE_FALLBACK = 'DH-DANG-DONG-BO';
 
 const AdminOrderDetailContent = ({ orderCode, routeId }: { orderCode: string; routeId?: string }) => {
   const t = ADMIN_DICTIONARY.orderDetail;
@@ -65,7 +64,7 @@ const AdminOrderDetailContent = ({ orderCode, routeId }: { orderCode: string; ro
     try {
       setLoadError(null);
       if (orderCode) {
-        const data = await getAdminOrderByCode(orderCode);
+        const data = await getAdminOrderByIdentifier(orderCode);
         setOrder(data);
       }
     } catch (error: unknown) {
@@ -198,7 +197,7 @@ const AdminOrderDetailContent = ({ orderCode, routeId }: { orderCode: string; ro
       title={
         <div className="od-title-row">
           <button className="admin-ghost-btn" onClick={() => window.history.back()} aria-label={t.back}>←</button>
-          <span>{t.orderPrefix} #{toDisplayCode(order.code || routeId, ORDER_CODE_FALLBACK)}</span>
+          <span>{t.orderPrefix} #{toDisplayOrderCode(order.code || routeId)}</span>
         </div>
       }
       actions={(

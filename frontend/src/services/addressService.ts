@@ -1,6 +1,20 @@
 import type { Address } from '../types';
+import { apiRequest } from './apiClient';
 
 const KEY = 'coolmate_addresses_v1';
+
+interface BackendAddressResponse {
+  id: string;
+  fullName?: string | null;
+  phone?: string | null;
+  province?: string | null;
+  district?: string | null;
+  ward?: string | null;
+  detail?: string | null;
+  isDefault?: boolean | null;
+}
+
+type AddressPayload = Omit<Address, 'id'>;
 
 const load = (): Address[] => {
   try {
@@ -16,7 +30,50 @@ const save = (data: Address[]) => {
   localStorage.setItem(KEY, JSON.stringify(data));
 };
 
+const mapBackendAddress = (address: BackendAddressResponse): Address => ({
+  id: address.id,
+  fullName: address.fullName?.trim() || '',
+  phone: address.phone?.trim() || '',
+  detail: address.detail?.trim() || '',
+  ward: address.ward?.trim() || '',
+  district: address.district?.trim() || '',
+  province: address.province?.trim() || '',
+  isDefault: Boolean(address.isDefault),
+});
+
 export const addressService = {
+  async listFromBackend(): Promise<Address[]> {
+    const rows = await apiRequest<BackendAddressResponse[]>('/api/addresses', { method: 'GET' }, { auth: true });
+    return Array.isArray(rows) ? rows.map(mapBackendAddress) : [];
+  },
+
+  async addOnBackend(address: AddressPayload): Promise<Address> {
+    const created = await apiRequest<BackendAddressResponse>('/api/addresses', {
+      method: 'POST',
+      body: JSON.stringify(address),
+    }, { auth: true });
+    return mapBackendAddress(created);
+  },
+
+  async updateOnBackend(id: string, payload: Partial<AddressPayload>): Promise<Address> {
+    const updated = await apiRequest<BackendAddressResponse>(`/api/addresses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }, { auth: true });
+    return mapBackendAddress(updated);
+  },
+
+  async removeOnBackend(id: string): Promise<void> {
+    await apiRequest<void>(`/api/addresses/${id}`, { method: 'DELETE' }, { auth: true });
+  },
+
+  async setDefaultOnBackend(id: string): Promise<Address> {
+    const updated = await apiRequest<BackendAddressResponse>(`/api/addresses/${id}/default`, {
+      method: 'PATCH',
+    }, { auth: true });
+    return mapBackendAddress(updated);
+  },
+
   getAll(): Address[] {
     const data = load();
     if (data.length === 0) {

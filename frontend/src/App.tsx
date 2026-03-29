@@ -30,6 +30,10 @@ const FAQ = lazy(() => import('./pages/FAQ/FAQ'));
 const PaymentResult = lazy(() => import('./pages/PaymentResult/PaymentResult'));
 const SizeGuide = lazy(() => import('./pages/SizeGuide/SizeGuide'));
 const StoreProfile = lazy(() => import('./pages/StoreProfile/StoreProfile'));
+const Login = lazy(() => import('./pages/Auth/Login'));
+const Register = lazy(() => import('./pages/Auth/Register'));
+const ForgotPassword = lazy(() => import('./pages/Auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/Auth/ResetPassword'));
 
 // Admin pages
 import AdminWorkspace from './pages/Admin/AdminWorkspace';
@@ -93,6 +97,10 @@ function App() {
                           <Route path="/product/:id" element={<ProductDetail />} />
                           <Route path="/cart" element={<Cart />} />
                           <Route path="/checkout" element={<Checkout />} />
+                          <Route path="/login" element={<Login />} />
+                          <Route path="/register" element={<Register />} />
+                          <Route path="/forgot" element={<ForgotPassword />} />
+                          <Route path="/reset-password" element={<ResetPassword />} />
                           <Route path="/profile" element={<Profile />} />
                           <Route path="/vendor/register" element={<VendorRegister />} />
                           <Route path="/order-success" element={<OrderSuccess />} />
@@ -116,12 +124,37 @@ function App() {
                         </Route>
 
                         {/* Admin routes - SUPER_ADMIN only */}
-                        <Route path="/admin/*" element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} animation="none"><AdminWorkspace /></ProtectedRoute>} />
+                        <Route
+                          path="/admin/*"
+                          element={(
+                            <ProtectedRoute
+                              allowedRoles={['SUPER_ADMIN']}
+                              redirectUnauthenticatedToLogin
+                              redirectUnauthorizedToLogin
+                              animation="none"
+                            >
+                              <AdminWorkspace />
+                            </ProtectedRoute>
+                          )}
+                        />
 
 
 
                         {/* Vendor Portal routes - VENDOR only */}
-                        <Route path="/vendor/*" element={<ProtectedRoute allowedRoles={['VENDOR']} requireVendorApproval animation="none"><VendorWorkspace /></ProtectedRoute>} />
+                        <Route
+                          path="/vendor/*"
+                          element={(
+                            <ProtectedRoute
+                              allowedRoles={['VENDOR']}
+                              requireVendorApproval
+                              redirectUnauthenticatedToLogin
+                              redirectUnauthorizedToLogin
+                              animation="none"
+                            >
+                              <VendorWorkspace />
+                            </ProtectedRoute>
+                          )}
+                        />
                       </Routes>
                     </div>
                   </RouteLoader>
