@@ -10,6 +10,7 @@ import { formatPrice } from '../../utils/formatters';
 import { CLIENT_TEXT } from '../../utils/texts';
 import type { Order } from '../../types';
 import './OrderDetail.css';
+import '../../styles/orderDetailTheme.css';
 
 const t = CLIENT_TEXT.common;
 
@@ -100,7 +101,7 @@ const OrderDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="od-page">
+      <div className="od-page od-theme od-theme-client">
         <div className="od-container">
           <div className="od-not-found">
             <h2>Đang tải đơn hàng...</h2>
@@ -112,7 +113,7 @@ const OrderDetail = () => {
 
   if (!order) {
     return (
-      <div className="od-page">
+      <div className="od-page od-theme od-theme-client">
         <div className="od-container">
           <div className="od-not-found">
             <Package size={64} strokeWidth={1} />
@@ -131,7 +132,7 @@ const OrderDetail = () => {
   const shippingAddress = addressParts.slice(2).join(',').trim() || '';
 
   return (
-    <div className="od-page">
+    <div className="od-page od-theme od-theme-client">
       <div className="od-container">
         <div className="od-breadcrumb">
           <Link to="/">Trang chủ</Link>

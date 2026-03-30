@@ -4,6 +4,7 @@ import { Heart, ShoppingCart, Trash2, ChevronRight, X } from 'lucide-react';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useCart } from '../../contexts/CartContext';
 import { useCartAnimation } from '../../context/CartAnimationContext';
+import { productService } from '../../services/productService';
 import { formatPrice } from '../../utils/formatters';
 import './Wishlist.css';
 
@@ -36,14 +37,21 @@ const Wishlist = () => {
     setSelectedColor('Đen');
   };
 
-  const handleConfirmAddToCart = (e: React.MouseEvent) => {
+  const handleConfirmAddToCart = async (e: React.MouseEvent) => {
     if (!pendingItem) return;
     
     // Tìm element ảnh để lấy toạ độ ban đầu (nếu có)
     const imgEl = document.querySelector('.wl-modal-img') as HTMLImageElement | null;
+    const purchaseReference = await productService.resolvePurchaseReference(
+      String(pendingItem.id),
+      selectedColor,
+      selectedSize,
+    );
     
     addToCart({
       id: pendingItem.id,
+      backendProductId: purchaseReference.backendProductId,
+      backendVariantId: purchaseReference.backendVariantId,
       name: pendingItem.name,
       price: pendingItem.price,
       image: pendingItem.image,

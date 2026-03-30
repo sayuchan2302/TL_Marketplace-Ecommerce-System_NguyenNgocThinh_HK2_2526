@@ -8,13 +8,14 @@ import { formatPrice } from '../../utils/formatters';
 import { CLIENT_TEXT } from '../../utils/texts';
 import { couponService, type Coupon } from '../../services/couponService';
 import { addressService } from '../../services/addressService';
+import { productService } from '../../services/productService';
 import {
   clearSelectedCartIdsForCheckout,
   getSelectedCartIdsForCheckout,
   setSelectedCartIdsForCheckout,
 } from '../../services/checkoutSelectionStore';
 import { orderService } from '../../services/orderService';
-import { apiRequest, hasBackendJwt } from '../../services/apiClient';
+import { ApiError, apiRequest, hasBackendJwt } from '../../services/apiClient';
 import type { Address } from '../../types';
 import AddressBookModal from './AddressBookModal';
 import { useAddressLocation } from '../../hooks/useAddressLocation';
@@ -142,8 +143,11 @@ const Checkout = () => {
   useEffect(() => {
     let cancelled = false;
     setIsCouponsFetching(true);
+    const storeIdsForCoupons = checkoutStoreKey
+      ? checkoutStoreKey.split(',').filter(Boolean)
+      : [];
 
-    couponService.getAvailableCoupons(checkoutStoreIds)
+    couponService.getAvailableCoupons(storeIdsForCoupons)
       .then((coupons) => {
         if (!cancelled) {
           setAvailableCoupons(coupons);
@@ -338,18 +342,51 @@ const Checkout = () => {
         throw new Error('Vui lòng đăng nhập để thanh toán.');
       }
 
+      const orderItems = await Promise.all(
+        checkoutItems.map(async (item) => {
+          const backendProductId = (item.backendProductId || '').trim();
+          const primaryIdentifier = String(item.id || '').trim();
+          const candidateIdentifiers = Array.from(
+            new Set([primaryIdentifier, backendProductId].filter(Boolean)),
+          );
+
+          let resolvedProductId: string | undefined;
+          let resolvedVariantId: string | undefined;
+
+          for (const identifier of candidateIdentifiers) {
+            const resolved = await productService.resolvePurchaseReference(
+              identifier,
+              item.color,
+              item.size,
+              { forceRefresh: true, strictPublic: true },
+            );
+            if (resolved.backendProductId && UUID_PATTERN.test(resolved.backendProductId)) {
+              resolvedProductId = resolved.backendProductId;
+              resolvedVariantId = resolved.backendVariantId;
+              break;
+            }
+          }
+
+          if (!resolvedProductId) {
+            throw new Error(`Sản phẩm "${item.name}" chưa đồng bộ backend. Vui lòng xoá và thêm lại sản phẩm này.`);
+          }
+
+          return {
+            productId: resolvedProductId,
+            variantId: resolvedVariantId,
+            quantity: item.quantity,
+            unitPrice: item.price,
+          };
+        }),
+      );
+
       const backendAddress = await findOrCreateBackendAddress();
       const backendOrder = await orderService.createBackendOrder({
         addressId: backendAddress.id,
         paymentMethod: paymentMethod.toUpperCase(),
         couponCode: appliedCoupon?.code,
         note: formValues.note.trim() || undefined,
-        items: checkoutItems.map((item) => ({
-          productId: String(item.backendProductId),
-          variantId: item.backendVariantId,
-          quantity: item.quantity,
-          unitPrice: item.price,
-        })),
+        items: orderItems,
       });
 
       if (saveAddressToBook && formValues.name && formValues.phone && formValues.address) {
@@ -376,7 +413,9 @@ const Checkout = () => {
       clearSelectedCartIdsForCheckout();
       navigate(`/order-success?id=${backendOrder.code || backendOrder.id}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Dat hang that bai. Vui long thu lai.';
+      const message = (error instanceof ApiError && error.status === 404)
+        ? 'Mot hoac nhieu san pham khong con kha dung. Vui long xoa va them lai tu trang san pham.'
+        : (error instanceof Error ? error.message : 'Dat hang that bai. Vui long thu lai.');
       addToast(message, 'error');
     } finally {
       setIsLoading(false);

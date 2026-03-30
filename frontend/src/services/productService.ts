@@ -29,6 +29,11 @@ export interface ProductCategory {
   slug: string;
 }
 
+interface ResolvePurchaseReferenceOptions {
+  forceRefresh?: boolean;
+  strictPublic?: boolean;
+}
+
 interface BackendProductImage {
   url?: string;
   isPrimary?: boolean;
@@ -368,6 +373,21 @@ const fetchProductByBackendId = async (id: string): Promise<Product | null> => {
   }
 };
 
+const fetchStrictPublicProductByBackendId = async (id: string): Promise<Product | null> => {
+  try {
+    const backendProducts = await apiRequest<BackendProduct[]>('/api/products');
+    const matched = backendProducts.find((product) => product.id === id);
+    if (!matched) {
+      return null;
+    }
+    const [mapped] = await enrichProductsWithStoreMeta([mapBackendProduct(matched)]);
+    cacheProducts([mapped]);
+    return mapped;
+  } catch {
+    return null;
+  }
+};
+
 const fetchProductByIdentifier = async (identifier: string): Promise<Product | null> => {
   const normalized = identifier.trim();
   if (!normalized) {
@@ -456,8 +476,25 @@ export const productService = {
     return this.getById(identifier);
   },
 
-  async resolvePurchaseReference(identifier: string, color?: string, size?: string) {
-    const product = await this.getByIdentifier(identifier);
+  async resolvePurchaseReference(
+    identifier: string,
+    color?: string,
+    size?: string,
+    options: ResolvePurchaseReferenceOptions = {},
+  ) {
+    const normalizedIdentifier = String(identifier || '').trim();
+    const strictPublic = options.strictPublic ?? false;
+    const product = strictPublic
+      ? (
+          UUID_PATTERN.test(normalizedIdentifier)
+            ? await fetchStrictPublicProductByBackendId(normalizedIdentifier)
+            : await fetchProductByIdentifier(normalizedIdentifier)
+        )
+      : (
+          options.forceRefresh
+            ? await fetchProductByIdentifier(normalizedIdentifier)
+            : await this.getByIdentifier(normalizedIdentifier)
+        );
     if (!product?.backendId) {
       return { backendProductId: undefined, backendVariantId: undefined };
     }

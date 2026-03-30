@@ -1,4 +1,5 @@
 import './Vendor.css';
+import '../../styles/orderDetailTheme.css';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, Copy, Link2, MapPin, Package, Percent, Printer, Store, Truck, User, XCircle } from 'lucide-react';
 import { startTransition, useEffect, useState } from 'react';
@@ -207,7 +208,7 @@ const VendorOrderDetail = () => {
           onAction={() => setReloadKey((key) => key + 1)}
         />
       ) : (
-        <motion.div className="order-detail-grid">
+        <motion.div className="order-detail-grid od-theme od-theme-vendor">
           <div className="od-left">
             <section className="od-section">
               <div className="od-section-head">

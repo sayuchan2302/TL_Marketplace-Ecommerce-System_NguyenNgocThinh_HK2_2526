@@ -39,6 +39,7 @@ import { profileService, type UserProfileRecord } from '../../services/profileSe
 import { authService } from '../../services/authService';
 import { calculateTier, TIER_CONFIG, getProgressToNextTier, getSpendRequiredForNextTier, getNextTier } from '../../utils/tierUtils';
 import { formatPrice } from '../../utils/formatters';
+import { resolveDetailRouteKey } from '../../utils/displayCode';
 import type { Address } from '../../types';
 import type { Order } from '../../types';
 import './Profile.css';
@@ -96,7 +97,6 @@ const Profile = () => {
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [addressesError, setAddressesError] = useState<string | null>(null);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const activeTab = useMemo(() => {
     const tabParam = searchParams.get('tab');
     return VALID_PROFILE_TABS.includes(tabParam as TabId) ? (tabParam as TabId) : 'account';
@@ -152,12 +152,6 @@ const Profile = () => {
 
   const orders = activeTab === 'orders' ? allOrders : [];
   const vouchers = activeTab === 'vouchers' ? voucherWallet : [];
-  const selectedOrder = (() => {
-    const orderId = searchParams.get('orderId') || selectedOrderId;
-    return orderId
-      ? allOrders.find((order) => order.id === orderId || order.code === orderId) || null
-      : null;
-  })();
   const orderCodeMap = useMemo(() => {
     const map = new Map<string, string>();
     allOrders.forEach((order) => {
@@ -218,14 +212,9 @@ const Profile = () => {
   }, []);
 
   const openOrderDetail = (order: Order) => {
-    setSelectedOrderId(order.id);
-  };
-
-  const closeOrderDetail = () => {
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.delete('orderId');
-    setSearchParams(nextParams, { replace: true });
-    setSelectedOrderId(null);
+    const routeKey = resolveDetailRouteKey(order.code, order.id);
+    if (!routeKey) return;
+    navigate(`/profile/orders/${encodeURIComponent(routeKey)}`);
   };
 
   const loadOrders = useCallback(async () => {
@@ -404,14 +393,14 @@ const Profile = () => {
   }, [authUser, isAccountModalOpen, profile]);
 
   useEffect(() => {
-    const anyModalOpen = isAccountModalOpen || isPasswordModalOpen || isAddressModalOpen || isReviewModalOpen || !!selectedOrder;
+    const anyModalOpen = isAccountModalOpen || isPasswordModalOpen || isAddressModalOpen || isReviewModalOpen;
     if (anyModalOpen) {
       document.body.classList.add('modal-open');
     } else {
       document.body.classList.remove('modal-open');
     }
     return () => document.body.classList.remove('modal-open');
-  }, [isAccountModalOpen, isPasswordModalOpen, isAddressModalOpen, isReviewModalOpen, selectedOrder]);
+  }, [isAccountModalOpen, isPasswordModalOpen, isAddressModalOpen, isReviewModalOpen]);
 
   const handleLogout = () => {
     logout();
@@ -1308,155 +1297,6 @@ const Profile = () => {
         onSave={loadAddresses}
         editingAddress={editingAddress}
       />
-
-      {/* Order Detail Drawer */}
-      {selectedOrder && (
-        <div className="profile-modal-overlay" onClick={closeOrderDetail}>
-          <div className="profile-modal order-drawer" onClick={(e) => e.stopPropagation()}>
-            <div className="profile-modal-header">
-              <div>
-                <p className="profile-modal-eyebrow">Chi tiết đơn hàng</p>
-                <h2>#{selectedOrder.code || selectedOrder.id}</h2>
-              </div>
-              <button className="profile-modal-close" onClick={closeOrderDetail} aria-label="Đóng">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="profile-modal-body">
-              {/* Status & Date */}
-              <div className="order-drawer-status">
-                <span className={`order-status-badge status-${selectedOrder.status}`}>
-                  {tCommon.status[selectedOrder.status]}
-                </span>
-                <span className="order-drawer-date">
-                  {new Date(selectedOrder.createdAt).toLocaleString('vi-VN')}
-                </span>
-              </div>
-
-              {/* Shipping Address - First */}
-              <div className="order-drawer-section">
-                <h4>Địa chỉ giao hàng</h4>
-                <p className="order-drawer-address">{selectedOrder.addressSummary}</p>
-              </div>
-
-              {/* Products - Second */}
-              <div className="order-drawer-section">
-                <h4>Sản phẩm ({selectedOrder.items.length})</h4>
-                <div className="order-drawer-items">
-                  {selectedOrder.items.map((item, idx) => (
-                    <div key={idx} className="order-drawer-item">
-                      <img src={item.image} alt={item.name} className="order-drawer-item-img" />
-                      <div className="order-drawer-item-info">
-                        <p className="order-drawer-item-name">{item.name}</p>
-                        {item.color && <p className="order-drawer-item-variant">Màu: {item.color}</p>}
-                        {item.size && <p className="order-drawer-item-variant">Size: {item.size}</p>}
-                        <p className="order-drawer-item-qty">x{item.quantity}</p>
-                      </div>
-                      <span className="order-drawer-item-price">{(item.price * item.quantity).toLocaleString('vi-VN')}đ</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Payment Method */}
-              <div className="order-drawer-section">
-                <h4>Phương thức thanh toán</h4>
-                <p className="order-drawer-payment">
-                  {selectedOrder.paymentMethod === 'cod' && 'Thanh toán khi nhận hàng (COD)'}
-                  {selectedOrder.paymentMethod === 'banking' && 'Chuyển khoản ngân hàng'}
-                  {selectedOrder.paymentMethod === 'vnpay' && 'VNPay'}
-                  {selectedOrder.paymentMethod === 'momo' && 'MoMo'}
-                  {!selectedOrder.paymentMethod && 'Chưa cập nhật'}
-                </p>
-              </div>
-
-              {/* Tracking Timeline */}
-              {selectedOrder.statusSteps && selectedOrder.statusSteps.length > 0 && (
-                <div className="order-drawer-section">
-                  <h4>Hành trình đơn hàng</h4>
-                  <div className="order-drawer-timeline">
-                    {selectedOrder.statusSteps.map((step, idx) => (
-                      <div key={idx} className={`order-timeline-step ${step.timestamp ? 'completed' : ''}`}>
-                        <div className="order-timeline-dot"></div>
-                        <div className="order-timeline-content">
-                          <p className="order-timeline-label">{step.label}</p>
-                          {step.timestamp && (
-                            <p className="order-timeline-time">
-                              {new Date(step.timestamp).toLocaleString('vi-VN')}
-                            </p>
-                          )}
-                          {step.description && (
-                            <p className="order-timeline-desc">{step.description}</p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Summary */}
-              <div className="order-drawer-summary">
-                <div className="order-drawer-summary-row">
-                  <span>Tạm tính</span>
-                  <span>{selectedOrder.items.reduce((sum, item) => sum + item.price * item.quantity, 0).toLocaleString('vi-VN')}đ</span>
-                </div>
-                <div className="order-drawer-summary-row">
-                  <span>Phí vận chuyển</span>
-                  <span>{selectedOrder.shippingFee?.toLocaleString('vi-VN') || '30.000'}đ</span>
-                </div>
-                <div className="order-drawer-summary-row">
-                  <span>Giảm giá</span>
-                  <span>-{selectedOrder.discount?.toLocaleString('vi-VN') || '0'}đ</span>
-                </div>
-                <div className="order-drawer-summary-row total">
-                  <span>Tổng cộng</span>
-                  <span>{selectedOrder.total.toLocaleString('vi-VN')}đ</span>
-                </div>
-              </div>
-
-              {/* Cancel Reason (if cancelled) */}
-              {selectedOrder.status === 'cancelled' && selectedOrder.cancelReason && (
-                <div className="order-drawer-section order-drawer-cancel-info">
-                  <h4>Lý do hủy</h4>
-                  <p className="order-drawer-cancel-reason">{selectedOrder.cancelReason}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="profile-modal-footer">
-              {selectedOrder.status === 'pending' && (
-                <button 
-                  className="order-action-btn order-btn-danger"
-                  onClick={async () => {
-                    if (confirm('Bạn có chắc chắn muốn hủy đơn hàng này?')) {
-                      try {
-                        await orderService.cancelOnBackend(selectedOrder.id, 'Khách hàng hủy đơn');
-                        await loadOrders();
-                        closeOrderDetail();
-                        addToast('Đã hủy đơn hàng thành công', 'success');
-                      } catch (error: unknown) {
-                        const message = error instanceof Error ? error.message : 'Không thể hủy đơn hàng.';
-                        addToast(message, 'error');
-                      }
-                    }
-                  }}
-                >
-                  Hủy đơn hàng
-                </button>
-              )}
-              <button 
-                className="order-action-btn order-btn-outline"
-                onClick={closeOrderDetail}
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Review Modal */}
       {reviewProduct && (
         <ReviewModal

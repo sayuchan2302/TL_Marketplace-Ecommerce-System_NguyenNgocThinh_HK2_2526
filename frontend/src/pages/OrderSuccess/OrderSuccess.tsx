@@ -140,7 +140,7 @@ const OrderSuccess = () => {
           </p>
 
           <div className="os-actions">
-            <Link to={`/profile?tab=orders&orderId=${orderId}`} className="os-btn os-btn-outline">
+            <Link to={`/profile/orders/${encodeURIComponent(orderId)}`} className="os-btn os-btn-outline">
               <Package size={16} />
               Xem đơn hàng
             </Link>

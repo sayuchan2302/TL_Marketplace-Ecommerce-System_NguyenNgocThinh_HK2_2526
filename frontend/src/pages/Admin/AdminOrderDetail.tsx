@@ -28,6 +28,7 @@ import { calculateCommission, formatCurrency } from '../../services/commissionSe
 import { MARKETPLACE_DICTIONARY } from '../../utils/clientDictionary';
 import { getUiErrorMessage } from '../../utils/errorMessage';
 import { toDisplayOrderCode } from '../../utils/displayCode';
+import '../../styles/orderDetailTheme.css';
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
 
@@ -214,7 +215,7 @@ const AdminOrderDetailContent = ({ orderCode, routeId }: { orderCode: string; ro
       )}
     >
       <motion.div
-        className="order-detail-grid"
+        className="order-detail-grid od-theme od-theme-admin"
       >
         <div className="od-left">
           <section className="od-section">

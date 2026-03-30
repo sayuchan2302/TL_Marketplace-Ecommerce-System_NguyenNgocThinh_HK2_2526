@@ -6,7 +6,7 @@ node_modules
 .agent/
 .agents/
 .vscode/settings.json
-skills-lock.json
+.skills-lock.json
 
 
 # Dependencies
@@ -42,3 +42,4 @@ backend/boot-run.log
 # OS
 .DS_Store
 Thumbs.db
+skills-lock.json
