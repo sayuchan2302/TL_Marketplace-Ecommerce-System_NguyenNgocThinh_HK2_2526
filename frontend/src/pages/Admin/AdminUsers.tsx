@@ -1,7 +1,23 @@
 import './AdminUsers.css';
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Ban, CheckCircle2, Eye, Shield, ShieldCheck, UserRound, X } from 'lucide-react';
+import {
+  Ban,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Eye,
+  Fingerprint,
+  Mail,
+  Phone,
+  Ruler,
+  Scale,
+  Shield,
+  ShieldCheck,
+  Store,
+  UserRound,
+  X,
+} from 'lucide-react';
 import AdminLayout from './AdminLayout';
 import AdminConfirmDialog from './AdminConfirmDialog';
 import { AdminStateBlock } from './AdminStateBlocks';
@@ -50,6 +66,27 @@ const formatDob = (dateOfBirth?: string) => {
   return parsed.toLocaleDateString('vi-VN');
 };
 
+const formatDate = (value?: string) => {
+  if (!value) return 'Chưa cập nhật';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Chưa cập nhật';
+  return parsed.toLocaleDateString('vi-VN');
+};
+
+const formatDateTime = (value?: string) => {
+  if (!value) return 'Chưa cập nhật';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Chưa cập nhật';
+  return parsed.toLocaleString('vi-VN', {
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 const statusLabel = (status: UserStatus) => {
   if (status === 'ACTIVE') return 'Đang hoạt động';
   if (status === 'LOCKED') return 'Đã khóa';
@@ -68,13 +105,91 @@ const roleTone = (role: UserRole) => {
   return 'warning';
 };
 
+const storeApprovalLabel = (status?: UserRecord['storeApprovalStatus']) => {
+  if (status === 'APPROVED') return 'Đã duyệt';
+  if (status === 'PENDING') return 'Chờ duyệt';
+  if (status === 'REJECTED') return 'Từ chối';
+  return 'Không áp dụng';
+};
+
+const storeApprovalTone = (status?: UserRecord['storeApprovalStatus']) => {
+  if (status === 'APPROVED') return 'success';
+  if (status === 'PENDING') return 'pending';
+  if (status === 'REJECTED') return 'error';
+  return '';
+};
+
+const storeStatusLabel = (status?: UserRecord['storeStatus']) => {
+  if (status === 'ACTIVE') return 'Đang hoạt động';
+  if (status === 'INACTIVE') return 'Ngừng hoạt động';
+  if (status === 'SUSPENDED') return 'Tạm ngưng';
+  return 'Không áp dụng';
+};
+
+const storeStatusTone = (status?: UserRecord['storeStatus']) => {
+  if (status === 'ACTIVE') return 'success';
+  if (status === 'INACTIVE') return 'warning';
+  if (status === 'SUSPENDED') return 'error';
+  return '';
+};
+
 const canManageUser = (user: UserRecord) => user.role !== 'SUPER_ADMIN';
+
+const getUserScope = (user: UserRecord) => {
+  if (user.role === 'SUPER_ADMIN') {
+    return {
+      title: 'Toàn bộ marketplace',
+      sub: 'Toàn quyền quản trị và giám sát hệ thống',
+    };
+  }
+
+  if (user.role === 'VENDOR' || user.status === 'PENDING_VENDOR') {
+    return {
+      title: user.storeName || 'Chưa gắn gian hàng',
+      sub: user.status === 'PENDING_VENDOR' ? 'Đang chờ duyệt onboarding vendor' : 'Đã kích hoạt vai trò người bán',
+    };
+  }
+
+  return {
+    title: 'Tài khoản người dùng',
+    sub: 'Phạm vi mua sắm trên marketplace',
+  };
+};
 
 const buildUserNote = (user: AdminUserRecord): string => {
   if (user.role === 'SUPER_ADMIN') return 'Tài khoản quản trị hệ thống';
   if (user.status === 'PENDING_VENDOR') return 'Đang chờ duyệt vendor onboarding';
   if (user.role === 'VENDOR') return 'Tài khoản vận hành gian hàng';
   return 'Tài khoản khách hàng';
+};
+
+const getUserInitial = (user: Pick<UserRecord, 'name' | 'email'>) => (user.name || user.email || 'U').trim().charAt(0).toUpperCase();
+
+const normalizeAvatar = (avatar?: string) => {
+  const next = avatar?.trim();
+  return next ? next : undefined;
+};
+
+const renderUserAvatar = (
+  user: Pick<UserRecord, 'name' | 'email' | 'avatar'>,
+  options?: { large?: boolean },
+) => {
+  const avatar = normalizeAvatar(user.avatar);
+  const className = options?.large ? 'user-avatar large' : 'user-avatar';
+
+  return (
+    <div className={className}>
+      {avatar ? (
+        <img
+          src={avatar}
+          alt={user.name ? `Ảnh đại diện ${user.name}` : 'Ảnh đại diện người dùng'}
+          className="user-avatar-image"
+        />
+      ) : (
+        <span>{getUserInitial(user)}</span>
+      )}
+    </div>
+  );
 };
 
 const AdminUsers = () => {
@@ -132,20 +247,25 @@ const AdminUsers = () => {
     if (search.trim()) {
       const query = search.trim().toLowerCase();
       next = next.filter((user) =>
-        `${user.name} ${user.email} ${user.phone || ''} ${user.storeName || ''}`.toLowerCase().includes(query),
+        `${user.name} ${user.email} ${user.phone || ''} ${user.storeName || ''} ${user.storeSlug || ''}`
+          .toLowerCase()
+          .includes(query),
       );
     }
 
     return next;
   }, [activeTab, search, users]);
 
-  const counts = useMemo(() => ({
-    all: users.length,
-    customer: users.filter((user) => user.role === 'CUSTOMER').length,
-    vendor: users.filter((user) => user.role === 'VENDOR' || user.status === 'PENDING_VENDOR').length,
-    admin: users.filter((user) => user.role === 'SUPER_ADMIN').length,
-    locked: users.filter((user) => user.status === 'LOCKED').length,
-  }), [users]);
+  const counts = useMemo(
+    () => ({
+      all: users.length,
+      customer: users.filter((user) => user.role === 'CUSTOMER').length,
+      vendor: users.filter((user) => user.role === 'VENDOR' || user.status === 'PENDING_VENDOR').length,
+      admin: users.filter((user) => user.role === 'SUPER_ADMIN').length,
+      locked: users.filter((user) => user.status === 'LOCKED').length,
+    }),
+    [users],
+  );
 
   const totalPages = Math.max(Math.ceil(filteredUsers.length / pageSize), 1);
   const safePage = Math.min(page, totalPages);
@@ -172,18 +292,20 @@ const AdminUsers = () => {
   };
 
   const lockableSelectedIds = useMemo(
-    () => Array.from(selected).filter((id) => {
-      const user = users.find((item) => item.id === id);
-      return Boolean(user && canManageUser(user) && user.status !== 'LOCKED');
-    }),
+    () =>
+      Array.from(selected).filter((id) => {
+        const user = users.find((item) => item.id === id);
+        return Boolean(user && canManageUser(user) && user.status !== 'LOCKED');
+      }),
     [selected, users],
   );
 
   const unlockableSelectedIds = useMemo(
-    () => Array.from(selected).filter((id) => {
-      const user = users.find((item) => item.id === id);
-      return Boolean(user && canManageUser(user) && user.status === 'LOCKED');
-    }),
+    () =>
+      Array.from(selected).filter((id) => {
+        const user = users.find((item) => item.id === id);
+        return Boolean(user && canManageUser(user) && user.status === 'LOCKED');
+      }),
     [selected, users],
   );
 
@@ -193,9 +315,7 @@ const AdminUsers = () => {
     setActionLoading(true);
     try {
       const shouldBeActive = confirmState.mode === 'unlock';
-      const updated = await Promise.all(
-        confirmState.ids.map((id) => adminUserService.updateActive(id, shouldBeActive)),
-      );
+      const updated = await Promise.all(confirmState.ids.map((id) => adminUserService.updateActive(id, shouldBeActive)));
       const updatedMap = new Map(updated.map((item) => [item.id, { ...item, note: buildUserNote(item) }]));
 
       setUsers((prev) => prev.map((row) => updatedMap.get(row.id) || row));
@@ -204,10 +324,7 @@ const AdminUsers = () => {
       }
       setSelected(new Set());
       setConfirmState(null);
-      addToast(
-        confirmState.mode === 'lock' ? 'Đã khóa tài khoản đã chọn' : 'Đã mở khóa tài khoản đã chọn',
-        'success',
-      );
+      addToast(confirmState.mode === 'lock' ? 'Đã khóa tài khoản đã chọn' : 'Đã mở khóa tài khoản đã chọn', 'success');
     } catch (error: unknown) {
       addToast(getUiErrorMessage(error, 'Không thể cập nhật trạng thái tài khoản.'), 'error');
     } finally {
@@ -215,17 +332,37 @@ const AdminUsers = () => {
     }
   };
 
+  const detailScope = detailUser ? getUserScope(detailUser) : null;
+
   return (
-    <AdminLayout
-      title="Người dùng"
-      breadcrumbs={['Người dùng', 'Khách hàng và người bán']}
-    >
+    <AdminLayout title="Người dùng" breadcrumbs={['Người dùng', 'Khách hàng và người bán']}>
       <PanelStatsGrid
         items={[
           { key: 'all', label: 'Tổng tài khoản', value: counts.all, sub: 'Toàn bộ tài khoản đang theo dõi' },
-          { key: 'customer', label: 'Khách hàng', value: counts.customer, sub: 'Tài khoản mua hàng trên sàn', tone: 'info', onClick: () => setActiveTab('customer') },
-          { key: 'vendor', label: 'Người bán', value: counts.vendor, sub: 'Bao gồm vendor đang bán và đang chờ duyệt', tone: 'success', onClick: () => setActiveTab('vendor') },
-          { key: 'locked', label: 'Đã khóa', value: counts.locked, sub: 'Tài khoản đang bị chặn đăng nhập', tone: counts.locked > 0 ? 'danger' : '', onClick: () => setActiveTab('locked') },
+          {
+            key: 'customer',
+            label: 'Khách hàng',
+            value: counts.customer,
+            sub: 'Tài khoản mua hàng trên sàn',
+            tone: 'info',
+            onClick: () => setActiveTab('customer'),
+          },
+          {
+            key: 'vendor',
+            label: 'Người bán',
+            value: counts.vendor,
+            sub: 'Bao gồm vendor đang bán và đang chờ duyệt',
+            tone: 'success',
+            onClick: () => setActiveTab('vendor'),
+          },
+          {
+            key: 'locked',
+            label: 'Đã khóa',
+            value: counts.locked,
+            sub: 'Tài khoản đang bị chặn đăng nhập',
+            tone: counts.locked > 0 ? 'danger' : '',
+            onClick: () => setActiveTab('locked'),
+          },
         ]}
       />
 
@@ -260,7 +397,9 @@ const AdminUsers = () => {
                     Mở khóa đã chọn
                   </button>
                 )}
-                <button className="admin-ghost-btn" onClick={() => setSelected(new Set())}>Bỏ chọn</button>
+                <button className="admin-ghost-btn" onClick={() => setSelected(new Set())}>
+                  Bỏ chọn
+                </button>
               </div>
             )}
           </div>
@@ -299,7 +438,9 @@ const AdminUsers = () => {
                     <input
                       type="checkbox"
                       checked={selected.size === filteredUsers.length && filteredUsers.length > 0}
-                      onChange={(event) => setSelected(event.target.checked ? new Set(filteredUsers.map((item) => item.id)) : new Set())}
+                      onChange={(event) =>
+                        setSelected(event.target.checked ? new Set(filteredUsers.map((item) => item.id)) : new Set())
+                      }
                     />
                   </div>
                   <div role="columnheader">Tài khoản</div>
@@ -310,70 +451,59 @@ const AdminUsers = () => {
                   <div role="columnheader">Hành động</div>
                 </div>
 
-                {pagedUsers.map((user) => (
-                  <motion.div
-                    key={user.id}
-                    className="admin-table-row users"
-                    role="row"
-                    whileHover={{ y: -1 }}
-                    onClick={() => setDetailUser(user)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <div role="cell" onClick={(event) => event.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(user.id)}
-                        onChange={(event) => {
-                          const next = new Set(selected);
-                          if (event.target.checked) next.add(user.id);
-                          else next.delete(user.id);
-                          setSelected(next);
-                        }}
-                      />
-                    </div>
-                    <div role="cell" className="user-cell">
-                      <div className="user-avatar">
-                        <span>{(user.name || user.email || 'U').charAt(0).toUpperCase()}</span>
+                {pagedUsers.map((user) => {
+                  const scope = getUserScope(user);
+
+                  return (
+                    <motion.div
+                      key={user.id}
+                      className="admin-table-row users"
+                      role="row"
+                      whileHover={{ y: -1 }}
+                      onClick={() => setDetailUser(user)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div role="cell" onClick={(event) => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(user.id)}
+                          onChange={(event) => {
+                            const next = new Set(selected);
+                            if (event.target.checked) next.add(user.id);
+                            else next.delete(user.id);
+                            setSelected(next);
+                          }}
+                        />
                       </div>
-                      <div className="user-copy">
-                        <div className="admin-bold">{user.name || 'Chưa cập nhật tên'}</div>
-                        <div className="admin-muted small">{user.email}</div>
-                        <div className="admin-muted small">{user.phone || 'Chưa có số điện thoại'}</div>
-                        <div className="admin-muted small">{genderLabel(user.gender)} • {formatDob(user.dateOfBirth)}</div>
+                      <div role="cell" className="user-cell">
+                        {renderUserAvatar(user)}
+                        <div className="user-copy">
+                          <div className="admin-bold">{user.name || 'Chưa cập nhật tên'}</div>
+                          <div className="admin-muted small">{user.email}</div>
+                        </div>
                       </div>
-                    </div>
-                    <div role="cell">
-                      <span className={`admin-pill ${roleTone(user.role)}`}>{roleLabel(user.role)}</span>
-                    </div>
-                    <div role="cell">
-                      <div className="admin-bold">
-                        {user.storeName || (user.role === 'SUPER_ADMIN' ? 'Toàn bộ marketplace' : 'Tài khoản người dùng')}
+                      <div role="cell">
+                        <span className={`admin-pill ${roleTone(user.role)}`}>{roleLabel(user.role)}</span>
                       </div>
-                      <div className="admin-muted small">
-                        {user.status === 'PENDING_VENDOR'
-                          ? 'Đang chờ duyệt onboarding'
-                          : user.role === 'VENDOR'
-                            ? 'Đã gắn quyền người bán'
-                            : user.role === 'SUPER_ADMIN'
-                              ? 'Toàn quyền quản trị'
-                              : 'Phạm vi mua hàng'}
+                      <div role="cell">
+                        <div className="admin-bold">{scope.title}</div>
+                        <div className="admin-muted small">{scope.sub}</div>
                       </div>
-                    </div>
-                    <div role="cell">{new Date(user.createdAt).toLocaleDateString('vi-VN')}</div>
-                    <div role="cell">
-                      <span className={`admin-pill ${statusTone(user.status)}`}>{statusLabel(user.status)}</span>
-                    </div>
-                    <div role="cell" className="admin-actions" onClick={(event) => event.stopPropagation()}>
-                      <button
-                        className="admin-icon-btn subtle"
-                        title="Xem hồ sơ"
-                        aria-label="Xem hồ sơ"
-                        onClick={() => setDetailUser(user)}
-                      >
-                        <Eye size={16} />
-                      </button>
-                      {canManageUser(user)
-                        ? (user.status === 'LOCKED' ? (
+                      <div role="cell">{formatDate(user.createdAt)}</div>
+                      <div role="cell">
+                        <span className={`admin-pill ${statusTone(user.status)}`}>{statusLabel(user.status)}</span>
+                      </div>
+                      <div role="cell" className="admin-actions" onClick={(event) => event.stopPropagation()}>
+                        <button
+                          className="admin-icon-btn subtle"
+                          title="Xem hồ sơ"
+                          aria-label="Xem hồ sơ"
+                          onClick={() => setDetailUser(user)}
+                        >
+                          <Eye size={16} />
+                        </button>
+                        {canManageUser(user) &&
+                          (user.status === 'LOCKED' ? (
                             <button
                               className="admin-icon-btn subtle"
                               title="Mở khóa tài khoản"
@@ -391,25 +521,42 @@ const AdminUsers = () => {
                             >
                               <Ban size={16} />
                             </button>
-                          ))
-                        : null}
-                    </div>
-                  </motion.div>
-                ))}
+                          ))}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
 
               <div className="table-footer">
                 <span className="table-footer-meta">
-                  Hiển thị {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, filteredUsers.length)} trên {filteredUsers.length} tài khoản
+                  Hiển thị {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, filteredUsers.length)} trên{' '}
+                  {filteredUsers.length} tài khoản
                 </span>
                 <div className="pagination">
-                  <button className="page-btn" disabled={safePage === 1} onClick={() => setPage((current) => Math.max(current - 1, 1))}>Trước</button>
+                  <button
+                    className="page-btn"
+                    disabled={safePage === 1}
+                    onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                  >
+                    Trước
+                  </button>
                   {Array.from({ length: totalPages }).map((_, index) => (
-                    <button key={index + 1} className={`page-btn ${safePage === index + 1 ? 'active' : ''}`} onClick={() => setPage(index + 1)}>
+                    <button
+                      key={index + 1}
+                      className={`page-btn ${safePage === index + 1 ? 'active' : ''}`}
+                      onClick={() => setPage(index + 1)}
+                    >
                       {index + 1}
                     </button>
                   ))}
-                  <button className="page-btn" disabled={safePage === totalPages} onClick={() => setPage((current) => Math.min(current + 1, totalPages))}>Sau</button>
+                  <button
+                    className="page-btn"
+                    disabled={safePage === totalPages}
+                    onClick={() => setPage((current) => Math.min(current + 1, totalPages))}
+                  >
+                    Sau
+                  </button>
                 </div>
               </div>
             </>
@@ -453,73 +600,81 @@ const AdminUsers = () => {
               <section className="drawer-section">
                 <h4>Tổng quan tài khoản</h4>
                 <div className="user-drawer-hero">
-                  <div className="user-avatar large">
-                    <span>{(detailUser.name || detailUser.email || 'U').charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div>
+                  {renderUserAvatar(detailUser, { large: true })}
+                  <div className="user-hero-copy">
                     <div className="admin-bold">{detailUser.name || 'Chưa cập nhật tên'}</div>
                     <div className="admin-muted">{detailUser.email}</div>
+                    <div className="admin-muted small">{detailScope?.title}</div>
                   </div>
-                  <span className={`admin-pill ${statusTone(detailUser.status)}`}>{statusLabel(detailUser.status)}</span>
+                  <div className="user-pill-stack">
+                    <span className={`admin-pill ${statusTone(detailUser.status)}`}>{statusLabel(detailUser.status)}</span>
+                    <span className={`admin-pill ${roleTone(detailUser.role)}`}>{roleLabel(detailUser.role)}</span>
+                  </div>
                 </div>
               </section>
 
               <section className="drawer-section">
-                <h4>Danh tính và quyền truy cập</h4>
-                <div className="admin-card-list">
-                  <div className="admin-card-row">
-                    <span className="admin-bold"><UserRound size={14} style={{ verticalAlign: -2, marginRight: 6 }} /> Vai trò</span>
-                    <span className="admin-muted">{roleLabel(detailUser.role)}</span>
-                  </div>
-                  <div className="admin-card-row">
-                    <span className="admin-bold">Điện thoại</span>
-                    <span className="admin-muted">{detailUser.phone || 'Chưa có số điện thoại'}</span>
-                  </div>
-                  <div className="admin-card-row">
-                    <span className="admin-bold">Giới tính</span>
-                    <span className="admin-muted">{genderLabel(detailUser.gender)}</span>
-                  </div>
-                  <div className="admin-card-row">
-                    <span className="admin-bold">Ngày sinh</span>
-                    <span className="admin-muted">{formatDob(detailUser.dateOfBirth)}</span>
-                  </div>
-                  <div className="admin-card-row">
-                    <span className="admin-bold">Điểm tích lũy</span>
-                    <span className="admin-muted">{(detailUser.loyaltyPoints ?? 0).toLocaleString('vi-VN')} điểm</span>
-                  </div>
-                  <div className="admin-card-row">
-                    <span className="admin-bold">Ngày tham gia</span>
-                    <span className="admin-muted">{new Date(detailUser.createdAt).toLocaleDateString('vi-VN')}</span>
-                  </div>
-                  <div className="admin-card-row">
-                    <span className="admin-bold">Phạm vi</span>
-                    <span className="admin-muted">
-                      {detailUser.role === 'VENDOR'
-                        ? detailUser.storeName || 'Chưa gán gian hàng'
-                        : detailUser.role === 'SUPER_ADMIN'
-                          ? 'Toàn bộ marketplace'
-                          : 'Mua sắm trên marketplace'}
+                <h4>Danh tính và liên hệ</h4>
+                <div className="user-detail-grid">
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">
+                      <Mail size={14} />
+                      Email
                     </span>
+                    <strong className="user-detail-value">{detailUser.email}</strong>
                   </div>
-                  {detailUser.storeName && (
-                    <div className="admin-card-row">
-                      <span className="admin-bold">Gian hàng</span>
-                      <span className="admin-muted">{detailUser.storeName}</span>
-                    </div>
-                  )}
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">
+                      <Phone size={14} />
+                      Điện thoại
+                    </span>
+                    <strong className="user-detail-value">{detailUser.phone || 'Chưa cập nhật'}</strong>
+                  </div>
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">
+                      <UserRound size={14} />
+                      Giới tính
+                    </span>
+                    <strong className="user-detail-value">{genderLabel(detailUser.gender)}</strong>
+                  </div>
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">
+                      <CalendarDays size={14} />
+                      Ngày sinh
+                    </span>
+                    <strong className="user-detail-value">{formatDob(detailUser.dateOfBirth)}</strong>
+                  </div>
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">
+                      <Ruler size={14} />
+                      Chiều cao
+                    </span>
+                    <strong className="user-detail-value">
+                      {detailUser.height && detailUser.height > 0 ? `${detailUser.height} cm` : 'Chưa cập nhật'}
+                    </strong>
+                  </div>
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">
+                      <Scale size={14} />
+                      Cân nặng
+                    </span>
+                    <strong className="user-detail-value">
+                      {detailUser.weight && detailUser.weight > 0 ? `${detailUser.weight} kg` : 'Chưa cập nhật'}
+                    </strong>
+                  </div>
                 </div>
               </section>
 
               <section className="drawer-section">
-                <h4>Tín hiệu nghiệp vụ</h4>
-                <div className="user-signal-grid user-signal-grid-compact">
+                <h4>Thông tin nghiệp vụ</h4>
+                <div className="user-signal-grid">
+                  <div className="user-signal-card">
+                    <span className="admin-muted small">Điểm tích lũy</span>
+                    <strong>{(detailUser.loyaltyPoints ?? 0).toLocaleString('vi-VN')} điểm</strong>
+                  </div>
                   <div className="user-signal-card">
                     <span className="admin-muted small">Đăng nhập</span>
-                    <strong>{detailUser.status === 'LOCKED' ? 'Bị chặn' : 'Cho phép'}</strong>
-                  </div>
-                  <div className="user-signal-card">
-                    <span className="admin-muted small">Store status</span>
-                    <strong>{detailUser.storeApprovalStatus || '-'}</strong>
+                    <strong>{detailUser.isActive ? 'Cho phép' : 'Bị chặn'}</strong>
                   </div>
                   <div className="user-signal-card">
                     <span className="admin-muted small">Account status</span>
@@ -529,28 +684,94 @@ const AdminUsers = () => {
               </section>
 
               <section className="drawer-section">
+                <h4>Gian hàng liên kết</h4>
+                <div className="user-detail-grid">
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">
+                      <Store size={14} />
+                      Tên gian hàng
+                    </span>
+                    <strong className="user-detail-value">{detailUser.storeName || 'Chưa liên kết'}</strong>
+                  </div>
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">Store slug</span>
+                    <strong className="user-detail-value mono">{detailUser.storeSlug || '-'}</strong>
+                  </div>
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">Store ID</span>
+                    <strong className="user-detail-value mono">{detailUser.storeId || '-'}</strong>
+                  </div>
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">Duyệt gian hàng</span>
+                    <strong className="user-detail-value">
+                      <span className={`admin-pill ${storeApprovalTone(detailUser.storeApprovalStatus)}`}>
+                        {storeApprovalLabel(detailUser.storeApprovalStatus)}
+                      </span>
+                    </strong>
+                  </div>
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">Trạng thái gian hàng</span>
+                    <strong className="user-detail-value">
+                      <span className={`admin-pill ${storeStatusTone(detailUser.storeStatus)}`}>
+                        {storeStatusLabel(detailUser.storeStatus)}
+                      </span>
+                    </strong>
+                  </div>
+                </div>
+              </section>
+
+              <section className="drawer-section">
+                <h4>Dấu thời gian hệ thống</h4>
+                <div className="user-detail-grid">
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">
+                      <Fingerprint size={14} />
+                      User ID
+                    </span>
+                    <strong className="user-detail-value mono">{detailUser.id}</strong>
+                  </div>
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">
+                      <CalendarDays size={14} />
+                      Ngày tạo
+                    </span>
+                    <strong className="user-detail-value">{formatDateTime(detailUser.createdAt)}</strong>
+                  </div>
+                  <div className="user-detail-item">
+                    <span className="user-detail-label">
+                      <Clock3 size={14} />
+                      Cập nhật gần nhất
+                    </span>
+                    <strong className="user-detail-value">{formatDateTime(detailUser.updatedAt)}</strong>
+                  </div>
+                </div>
+              </section>
+
+              <section className="drawer-section">
                 <h4>Ghi chú vận hành</h4>
-                <p className="admin-muted user-note">
-                  {detailUser.note || 'Chưa có ghi chú nội bộ cho tài khoản này.'}
-                </p>
+                <p className="admin-muted user-note">{detailUser.note || 'Chưa có ghi chú nội bộ cho tài khoản này.'}</p>
               </section>
             </div>
 
             <div className="drawer-footer">
-              <button className="admin-ghost-btn" onClick={() => setDetailUser(null)}>Đóng</button>
-              {canManageUser(detailUser)
-                ? (detailUser.status === 'LOCKED' ? (
-                    <button className="admin-primary-btn" onClick={() => openConfirm('unlock', [detailUser.id])}>
-                      <ShieldCheck size={14} />
-                      Mở khóa tài khoản
-                    </button>
-                  ) : (
-                    <button className="admin-ghost-btn danger" onClick={() => openConfirm('lock', [detailUser.id])}>
-                      <Shield size={14} />
-                      Khóa tài khoản
-                    </button>
-                  ))
-                : <span className="admin-muted small">Tài khoản SUPER_ADMIN không thể bị khóa.</span>}
+              <button className="admin-ghost-btn" onClick={() => setDetailUser(null)}>
+                Đóng
+              </button>
+              {canManageUser(detailUser) ? (
+                detailUser.status === 'LOCKED' ? (
+                  <button className="admin-primary-btn" onClick={() => openConfirm('unlock', [detailUser.id])}>
+                    <ShieldCheck size={14} />
+                    Mở khóa tài khoản
+                  </button>
+                ) : (
+                  <button className="admin-ghost-btn danger" onClick={() => openConfirm('lock', [detailUser.id])}>
+                    <Shield size={14} />
+                    Khóa tài khoản
+                  </button>
+                )
+              ) : (
+                <span className="admin-muted small">Tài khoản SUPER_ADMIN không thể bị khóa.</span>
+              )}
             </div>
           </>
         ) : null}

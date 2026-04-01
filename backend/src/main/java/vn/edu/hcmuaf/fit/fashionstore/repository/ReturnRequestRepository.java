@@ -12,6 +12,9 @@ import java.util.UUID;
 public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, UUID> {
     Page<ReturnRequest> findByStatus(ReturnRequest.ReturnStatus status, Pageable pageable);
     Page<ReturnRequest> findByUserId(UUID userId, Pageable pageable);
+    Page<ReturnRequest> findByStoreIdOrderByCreatedAtDesc(UUID storeId, Pageable pageable);
+    Page<ReturnRequest> findByStoreIdAndStatusOrderByCreatedAtDesc(UUID storeId, ReturnRequest.ReturnStatus status, Pageable pageable);
+    Optional<ReturnRequest> findByIdAndStoreId(UUID id, UUID storeId);
     long countByStatus(ReturnRequest.ReturnStatus status);
     Optional<ReturnRequest> findByReturnCode(String returnCode);
     Optional<ReturnRequest> findTopByReturnCodeStartingWithOrderByReturnCodeDesc(String returnCodePrefix);

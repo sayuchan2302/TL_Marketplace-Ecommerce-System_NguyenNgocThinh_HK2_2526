@@ -375,7 +375,6 @@ const Checkout = () => {
             productId: resolvedProductId,
             variantId: resolvedVariantId,
             quantity: item.quantity,
-            unitPrice: item.price,
           };
         }),
       );

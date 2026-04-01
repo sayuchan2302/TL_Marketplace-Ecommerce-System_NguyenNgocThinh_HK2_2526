@@ -31,6 +31,8 @@ export interface AdminOrderData {
   total: string;
   storeName?: string;
   commissionRate?: number;
+  commissionFee?: number;
+  vendorPayout?: number;
   paymentStatus: PaymentStatus;
   fulfillment: FulfillmentStatus;
   shipMethod: string;

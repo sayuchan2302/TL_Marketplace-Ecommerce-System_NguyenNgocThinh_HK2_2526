@@ -32,6 +32,8 @@ public class ReturnSubmitRequest {
         @NotNull
         private UUID orderItemId;
         private Integer quantity;
+        private String evidenceUrl;
+        // Backward-compatible field used by older clients
         private String adminImageUrl;
     }
 }

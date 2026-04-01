@@ -66,7 +66,7 @@ public class AdminDashboardService {
         long pendingStores = storeRepository.countByApprovalStatus(Store.ApprovalStatus.PENDING);
         long lockedUsers = userRepository.countByIsActiveFalse();
         long runningCampaigns = voucherRepository.countByStatus(Voucher.VoucherStatus.RUNNING);
-        long pendingReturns = returnRequestRepository.countByStatus(ReturnRequest.ReturnStatus.PENDING);
+        long pendingReturns = returnRequestRepository.countByStatus(ReturnRequest.ReturnStatus.DISPUTED);
         long categoriesNeedReview = categoryRepository.countByIsVisibleFalse();
         long parentOrdersNeedAttention = countParentOrdersNeedAttention();
 

@@ -116,7 +116,8 @@ const mapStatusType = (statusType: string): ProductStatusType => {
 };
 
 const mapAdminProductToClient = (record: AdminProductRecord, index: number): Product => {
-  const variants: ProductVariant[] = record.variantMatrix.map((row) => ({
+  const variantRows = Array.isArray(record.variantMatrix) ? record.variantMatrix : [];
+  const variants: ProductVariant[] = variantRows.map((row) => ({
     id: row.id,
     size: row.size,
     color: row.color,
@@ -132,14 +133,14 @@ const mapAdminProductToClient = (record: AdminProductRecord, index: number): Pro
     sku: record.sku,
     name: record.name,
     category: record.category,
-    price: record.price,
-    originalPrice: record.price,
-    image: record.thumb,
+    price: Number(record.price || 0),
+    originalPrice: Number(record.price || 0),
+    image: record.thumb || '',
     badge: record.statusType === 'low' ? 'LOW' : undefined,
-    colors: Array.from(new Set(record.variantMatrix.map((v) => v.color))).map((color) => color),
-    stock: record.stock,
-    status: record.status,
-    statusType: mapStatusType(record.statusType),
+    colors: Array.from(new Set(variantRows.map((v) => v.color))).map((color) => color),
+    stock: Number(record.stock || 0),
+    status: record.status || 'ACTIVE',
+    statusType: mapStatusType(record.statusType || 'active'),
     variants,
     storeId: storeInfo.storeId,
     storeName: storeInfo.storeName,

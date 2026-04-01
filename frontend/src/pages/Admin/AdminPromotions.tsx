@@ -25,6 +25,8 @@ interface PromotionFormState extends AdminPromotionUpsertInput {
   id?: string;
 }
 
+const ALL_MARKETPLACE_STORE = '__ALL_MARKETPLACE__';
+
 const emptyPromotion = (): PromotionFormState => ({
   storeId: '',
   name: '',
@@ -47,6 +49,21 @@ const formatDate = (value: string) => {
 };
 
 const normalizeCode = (value: string) => value.trim().replace(/\s+/g, '').toUpperCase();
+const isAllMarketplaceSelection = (storeId: string) => storeId === ALL_MARKETPLACE_STORE;
+
+const toUpsertInput = (form: PromotionFormState, storeIdOverride?: string): AdminPromotionUpsertInput => ({
+  storeId: storeIdOverride ?? form.storeId,
+  name: form.name,
+  code: form.code,
+  description: form.description,
+  discountType: form.discountType,
+  discountValue: form.discountValue,
+  minOrderValue: form.minOrderValue,
+  totalIssued: form.totalIssued,
+  startDate: form.startDate,
+  endDate: form.endDate,
+  status: form.status,
+});
 
 const deriveStatus = (promotion: AdminPromotionRecord): 'running' | 'paused' | 'expired' => {
   const endDate = new Date(promotion.endDate);
@@ -67,19 +84,34 @@ const validateForm = (
   form: PromotionFormState,
   rows: AdminPromotionRecord[],
   editingId: string | null,
+  selectableStores: StoreProfile[],
 ) => {
   if (!form.storeId) return 'Vui lòng chọn gian hàng áp dụng.';
+  if (isAllMarketplaceSelection(form.storeId) && selectableStores.length === 0) {
+    return 'Không có gian hàng đã duyệt để áp dụng voucher toàn sàn.';
+  }
+  if (editingId && isAllMarketplaceSelection(form.storeId)) {
+    return 'Không thể chuyển chiến dịch hiện có sang toàn sàn. Hãy tạo chiến dịch mới.';
+  }
   if (!form.name.trim()) return 'Tên chiến dịch không được để trống.';
   if (!form.code.trim()) return 'Mã voucher không được để trống.';
   if (!/^[A-Z0-9-]{4,24}$/.test(form.code)) return 'Mã chỉ gồm chữ hoa, số và dấu gạch ngang.';
+
+  const targetStoreIds = isAllMarketplaceSelection(form.storeId)
+    ? selectableStores.map((store) => store.id)
+    : [form.storeId];
+  const duplicatedVoucher = rows.find(
+    (item) =>
+      targetStoreIds.includes(item.storeId) &&
+      normalizeCode(item.code) === normalizeCode(form.code) &&
+      item.id !== editingId,
+  );
   if (
-    rows.some(
-      (item) =>
-        item.storeId === form.storeId &&
-        normalizeCode(item.code) === normalizeCode(form.code) &&
-        item.id !== editingId,
-    )
+    duplicatedVoucher
   ) {
+    if (isAllMarketplaceSelection(form.storeId)) {
+      return `Mã voucher đã tồn tại ở gian hàng "${duplicatedVoucher.storeName || duplicatedVoucher.storeId}".`;
+    }
     return 'Mã voucher đã tồn tại trong gian hàng đã chọn.';
   }
   if (form.discountValue <= 0) return 'Giá trị giảm phải lớn hơn 0.';
@@ -189,7 +221,7 @@ const AdminPromotions = () => {
     setEditingId(null);
     setForm({
       ...emptyPromotion(),
-      storeId: selectableStores[0]?.id || '',
+      storeId: selectableStores.length > 0 ? ALL_MARKETPLACE_STORE : '',
     });
     setIsDrawerOpen(true);
   };
@@ -214,7 +246,7 @@ const AdminPromotions = () => {
   };
 
   const savePromotion = async () => {
-    const error = validateForm(form, rows, editingId);
+    const error = validateForm(form, rows, editingId, selectableStores);
     if (error) {
       pushToast(error);
       return;
@@ -223,10 +255,30 @@ const AdminPromotions = () => {
     try {
       setIsSubmitting(true);
       if (editingId) {
-        await adminPromotionService.update(editingId, form);
+        await adminPromotionService.update(editingId, toUpsertInput(form));
         pushToast('Đã cập nhật chiến dịch.');
+      } else if (isAllMarketplaceSelection(form.storeId)) {
+        const targetStores = selectableStores.map((store) => store.id);
+        const requests = targetStores.map((storeId) =>
+          adminPromotionService.create(toUpsertInput(form, storeId)),
+        );
+        const settled = await Promise.allSettled(requests);
+        const successCount = settled.filter((result) => result.status === 'fulfilled').length;
+        const failedCount = settled.length - successCount;
+
+        if (successCount === 0) {
+          const firstReject = settled.find((result) => result.status === 'rejected');
+          const reason = firstReject && firstReject.status === 'rejected' ? firstReject.reason : null;
+          throw reason instanceof Error ? reason : new Error('Không thể tạo chiến dịch toàn sàn.');
+        }
+
+        if (failedCount > 0) {
+          pushToast(`Đã tạo ${successCount} voucher toàn sàn (${failedCount} gian hàng lỗi).`);
+        } else {
+          pushToast(`Đã tạo voucher toàn sàn cho ${successCount} gian hàng.`);
+        }
       } else {
-        await adminPromotionService.create(form);
+        await adminPromotionService.create(toUpsertInput(form));
         pushToast('Đã tạo chiến dịch mới.');
       }
       setIsDrawerOpen(false);
@@ -466,6 +518,11 @@ const AdminPromotions = () => {
                 <span>Gian hàng áp dụng</span>
                 <select value={form.storeId} onChange={(e) => setForm((prev) => ({ ...prev, storeId: e.target.value }))}>
                   <option value="">Chọn gian hàng</option>
+                  {selectableStores.length > 0 && (
+                    <option value={ALL_MARKETPLACE_STORE} disabled={Boolean(editingId)}>
+                      Toàn sàn (mọi gian hàng đã duyệt)
+                    </option>
+                  )}
                   {selectableStores.map((store) => (
                     <option key={store.id} value={store.id}>{store.name}</option>
                   ))}

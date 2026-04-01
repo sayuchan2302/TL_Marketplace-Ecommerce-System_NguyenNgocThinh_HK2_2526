@@ -227,7 +227,7 @@ public class MarketplaceSeeder implements ApplicationRunner {
         Order orderDaHuy = createOrder(customerHuy, addressHuy, storeBinh, Order.OrderStatus.CANCELLED, Order.PaymentMethod.VNPAY, Order.PaymentStatus.FAILED, "DH-SEED-CANCELLED-001", null, null, new BigDecimal("25000"), BigDecimal.ZERO, null);
         addOrderItem(orderDaHuy, blazerNu, blazerDenL, 1, new BigDecimal("614000"), storeBinh.getId());
 
-        createReturnRequest(orderDaGiao, customerMinh, itemDaGiao, ReturnRequest.ReturnReason.SIZE, ReturnRequest.ReturnResolution.EXCHANGE, ReturnRequest.ReturnStatus.PENDING, "Khách muốn đổi size M sang L.", "Đã tiếp nhận và chờ cửa hàng xác nhận tồn kho.");
+        createReturnRequest(orderDaGiao, customerMinh, itemDaGiao, ReturnRequest.ReturnReason.SIZE, ReturnRequest.ReturnResolution.EXCHANGE, ReturnRequest.ReturnStatus.PENDING_VENDOR, "Khách muốn đổi size M sang L.", "Đã tiếp nhận và chờ cửa hàng xác nhận tồn kho.");
 
         createReview(aoThunPremium, customerMinh, orderDaGiao, storeAn.getId(), 5, "Áo mặc rất thoải mái", "Chất vải mát, form đẹp, giao nhanh.", Review.ReviewStatus.APPROVED, "Cảm ơn bạn đã ủng hộ shop.", List.of("https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"));
         createReview(damMidi, customerLan, orderDangGiao, storeBinh.getId(), 5, "Đầm lên dáng xinh", "Vải nhẹ, không nhăn nhiều.", Review.ReviewStatus.PENDING, null, List.of());
@@ -254,6 +254,8 @@ public class MarketplaceSeeder implements ApplicationRunner {
                     return_items,
                     wallet_transactions,
                     vendor_wallets,
+                    customer_wallet_transactions,
+                    customer_wallets,
                     inventory_ledger,
                     wishlists,
                     notifications,
@@ -558,6 +560,7 @@ public class MarketplaceSeeder implements ApplicationRunner {
         request.setOrder(order);
         request.setReturnCode(publicCodeService.nextReturnCode());
         request.setUser(user);
+        request.setStoreId(orderItem.getStoreId());
         request.setReason(reason);
         request.setResolution(resolution);
         request.setStatus(status);
@@ -570,6 +573,7 @@ public class MarketplaceSeeder implements ApplicationRunner {
                         orderItem.getProductName(),
                         orderItem.getVariantName(),
                         orderItem.getProductImage(),
+                        null,
                         1,
                         orderItem.getUnitPrice()
                 )

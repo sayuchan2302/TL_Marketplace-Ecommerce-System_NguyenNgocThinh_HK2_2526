@@ -9,15 +9,20 @@ export interface AdminUserRecord {
   name: string;
   email: string;
   phone: string;
+  avatar?: string;
   gender?: AdminUserGender;
   dateOfBirth?: string;
+  height?: number;
+  weight?: number;
   loyaltyPoints?: number;
   role: AdminUserRole;
   status: AdminUserStatus;
   isActive: boolean;
   createdAt: string;
+  updatedAt?: string;
   storeId?: string;
   storeName?: string;
+  storeSlug?: string;
   storeApprovalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   storeStatus?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 }

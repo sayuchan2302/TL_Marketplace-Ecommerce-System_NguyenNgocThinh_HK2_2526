@@ -5,15 +5,27 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-import vn.edu.hcmuaf.fit.fashionstore.dto.request.ReturnStatusUpdateRequest;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import vn.edu.hcmuaf.fit.fashionstore.dto.request.ReturnAdminVerdictRequest;
+import vn.edu.hcmuaf.fit.fashionstore.dto.request.ReturnCancelRequest;
+import vn.edu.hcmuaf.fit.fashionstore.dto.request.ReturnDisputeRequest;
+import vn.edu.hcmuaf.fit.fashionstore.dto.request.ReturnRejectRequest;
+import vn.edu.hcmuaf.fit.fashionstore.dto.request.ReturnShippingUpdateRequest;
 import vn.edu.hcmuaf.fit.fashionstore.dto.request.ReturnSubmitRequest;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.ReturnRequestResponse;
 import vn.edu.hcmuaf.fit.fashionstore.entity.ReturnRequest;
 import vn.edu.hcmuaf.fit.fashionstore.security.AuthContext;
+import vn.edu.hcmuaf.fit.fashionstore.security.AuthContext.UserContext;
 import vn.edu.hcmuaf.fit.fashionstore.service.ReturnRequestService;
 
-import java.security.Principal;
 import java.util.UUID;
 
 @RestController
@@ -30,10 +42,106 @@ public class ReturnRequestController {
 
     @PostMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ReturnRequestResponse> submit(@Valid @RequestBody ReturnSubmitRequest request,
-                                                        @RequestHeader("Authorization") String authHeader) {
-        UUID userId = authContext.fromAuthHeader(authHeader).getUserId();
-        return ResponseEntity.ok(returnRequestService.submit(userId, request));
+    public ResponseEntity<ReturnRequestResponse> submit(
+            @Valid @RequestBody ReturnSubmitRequest request,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        UserContext ctx = authContext.fromAuthHeader(authHeader);
+        return ResponseEntity.ok(returnRequestService.submit(ctx.getUserId(), request));
+    }
+
+    @PatchMapping("/{id}/shipping")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ReturnRequestResponse> markShipping(
+            @PathVariable UUID id,
+            @Valid @RequestBody ReturnShippingUpdateRequest request,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        UserContext ctx = authContext.fromAuthHeader(authHeader);
+        return ResponseEntity.ok(returnRequestService.markShipping(
+                id,
+                ctx.getUserId(),
+                request.getTrackingNumber(),
+                request.getCarrier(),
+                ctx.getEmail()
+        ));
+    }
+
+    @PatchMapping("/{id}/dispute")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ReturnRequestResponse> openDispute(
+            @PathVariable UUID id,
+            @Valid @RequestBody ReturnDisputeRequest request,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        UserContext ctx = authContext.fromAuthHeader(authHeader);
+        return ResponseEntity.ok(returnRequestService.openDispute(id, ctx.getUserId(), request.getReason(), ctx.getEmail()));
+    }
+
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ReturnRequestResponse> cancelReturn(
+            @PathVariable UUID id,
+            @RequestBody(required = false) ReturnCancelRequest request,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        UserContext ctx = authContext.fromAuthHeader(authHeader);
+        String reason = request == null ? null : request.getReason();
+        return ResponseEntity.ok(returnRequestService.cancelByCustomer(id, ctx.getUserId(), reason, ctx.getEmail()));
+    }
+
+    @GetMapping("/my-store")
+    @PreAuthorize("hasRole('VENDOR')")
+    public ResponseEntity<Page<ReturnRequestResponse>> listMyStoreReturns(
+            @RequestParam(value = "status", required = false) ReturnRequest.ReturnStatus status,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        UserContext ctx = authContext.requireVendor(authHeader);
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(size, 100));
+        return ResponseEntity.ok(returnRequestService.listForVendor(ctx.getStoreId(), status, pageable));
+    }
+
+    @PatchMapping("/my-store/{id}/accept")
+    @PreAuthorize("hasRole('VENDOR')")
+    public ResponseEntity<ReturnRequestResponse> acceptReturn(
+            @PathVariable UUID id,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        UserContext ctx = authContext.requireVendor(authHeader);
+        return ResponseEntity.ok(returnRequestService.acceptReturn(id, ctx.getStoreId(), ctx.getEmail()));
+    }
+
+    @PatchMapping("/my-store/{id}/reject")
+    @PreAuthorize("hasRole('VENDOR')")
+    public ResponseEntity<ReturnRequestResponse> rejectReturn(
+            @PathVariable UUID id,
+            @Valid @RequestBody ReturnRejectRequest request,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        UserContext ctx = authContext.requireVendor(authHeader);
+        return ResponseEntity.ok(returnRequestService.rejectReturn(id, ctx.getStoreId(), request.getReason(), ctx.getEmail()));
+    }
+
+    @PatchMapping("/my-store/{id}/received")
+    @PreAuthorize("hasRole('VENDOR')")
+    public ResponseEntity<ReturnRequestResponse> markReceived(
+            @PathVariable UUID id,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        UserContext ctx = authContext.requireVendor(authHeader);
+        return ResponseEntity.ok(returnRequestService.markReceived(id, ctx.getStoreId(), ctx.getEmail()));
+    }
+
+    @PatchMapping("/my-store/{id}/confirm-refund")
+    @PreAuthorize("hasRole('VENDOR')")
+    public ResponseEntity<ReturnRequestResponse> confirmReceipt(
+            @PathVariable UUID id,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        UserContext ctx = authContext.requireVendor(authHeader);
+        return ResponseEntity.ok(returnRequestService.confirmReceipt(id, ctx.getStoreId(), ctx.getEmail()));
     }
 
     @GetMapping
@@ -59,15 +167,19 @@ public class ReturnRequestController {
         return ResponseEntity.ok(returnRequestService.getByCode(code));
     }
 
-    @PatchMapping("/{id}/status")
+    @PatchMapping("/admin/{id}/verdict")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<ReturnRequestResponse> updateStatus(@PathVariable UUID id,
-                                                              @Valid @RequestBody ReturnStatusUpdateRequest request,
-                                                              Principal principal) {
-        return ResponseEntity.ok(returnRequestService.updateStatus(
+    public ResponseEntity<ReturnRequestResponse> finalVerdict(
+            @PathVariable UUID id,
+            @Valid @RequestBody ReturnAdminVerdictRequest request,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        UserContext admin = authContext.requireAdmin(authHeader);
+        return ResponseEntity.ok(returnRequestService.finalVerdict(
                 id,
-                request,
-                principal != null ? principal.getName() : null
+                request.getAction(),
+                request.getAdminNote(),
+                admin.getEmail()
         ));
     }
 }

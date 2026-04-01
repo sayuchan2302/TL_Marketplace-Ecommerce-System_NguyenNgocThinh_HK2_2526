@@ -47,21 +47,30 @@
   font-weight: 800;
   border: 1px solid #93c5fd;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .user-avatar.large {
-  width: 54px;
-  height: 54px;
+  width: 56px;
+  height: 56px;
   font-size: 18px;
+}
+
+.user-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .user-drawer {
   width: 42vw;
-  max-width: 620px;
+  max-width: 640px;
 }
 
 .user-drawer-hero {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 12px;
   padding: 12px;
@@ -70,8 +79,72 @@
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
 }
 
-.user-drawer-hero .admin-pill {
-  margin-left: auto;
+.user-hero-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-hero-copy .admin-bold,
+.user-hero-copy .admin-muted {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-pill-stack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.user-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.user-detail-item {
+  border: 1px solid var(--co-gray-200);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.user-detail-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--co-admin-text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.25px;
+}
+
+.user-detail-value {
+  color: var(--co-admin-text);
+  font-size: 13px;
+  line-height: 1.45;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-detail-value .admin-pill {
+  width: fit-content;
+}
+
+.user-detail-value.mono {
+  font-family: 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
+  font-size: 12px;
 }
 
 .user-signal-grid {
@@ -100,10 +173,6 @@
   line-height: 1.7;
 }
 
-.user-signal-grid-compact {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
 @media (max-width: 1280px) {
   .admin-table-row.users {
     grid-template-columns:
@@ -126,6 +195,21 @@
 
   .user-signal-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .user-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-drawer-hero {
+    grid-template-columns: auto 1fr;
+  }
+
+  .user-pill-stack {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
   }
 }
 

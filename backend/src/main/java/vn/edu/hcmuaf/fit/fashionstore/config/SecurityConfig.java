@@ -136,8 +136,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/addresses/**").authenticated()
                         
                         // ─── Returns ───────────────────────────────────────────────────────
-                        .requestMatchers(HttpMethod.POST, "/api/returns").authenticated()
-                        .requestMatchers("/api/returns/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/returns/**").authenticated()
                         
                         // ─── Coupons: public read, admin write ─────────────────────────────
                         .requestMatchers(HttpMethod.GET, "/api/coupons/**").permitAll()

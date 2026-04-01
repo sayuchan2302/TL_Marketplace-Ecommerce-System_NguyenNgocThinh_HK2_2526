@@ -27,8 +27,16 @@ public class ReturnRequestResponse {
     private UUID storeId;
     private String storeName;
     private List<ReturnItem> items;
+    private BigDecimal refundAmount;
+    private String vendorReason;
+    private String disputeReason;
+    private String shippingTrackingNumber;
+    private String shippingCarrier;
     private String adminNote;
     private String updatedBy;
+    private LocalDateTime shippedAt;
+    private LocalDateTime receivedAt;
+    private LocalDateTime completedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -39,6 +47,7 @@ public class ReturnRequestResponse {
         private String productName;
         private String variantName;
         private String imageUrl;
+        private String evidenceUrl;
         private Integer quantity;
         private BigDecimal unitPrice;
     }

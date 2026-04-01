@@ -64,7 +64,8 @@ public class OrderService {
     }
 
     // Default commission rate (5%)
-    private static final BigDecimal DEFAULT_COMMISSION_RATE = new BigDecimal("0.05");
+    private static final BigDecimal DEFAULT_COMMISSION_RATE_PERCENT = new BigDecimal("5.0");
+    private static final BigDecimal COMMISSION_RATE_DIVISOR = new BigDecimal("100");
     private static final BigDecimal DEFAULT_SHIPPING_FEE = new BigDecimal("30000.0");
     private static final BigDecimal FREE_SHIPPING_THRESHOLD = new BigDecimal("500000.0");
     private static final LocalDateTime DEFAULT_FILTER_FROM = LocalDateTime.of(1970, 1, 1, 0, 0);
@@ -521,7 +522,8 @@ public class OrderService {
             String reason,
             boolean enforceVendorRules
     ) {
-        validateStatusTransition(order.getStatus(), status, enforceVendorRules);
+        Order.OrderStatus previousStatus = order.getStatus();
+        validateStatusTransition(previousStatus, status, enforceVendorRules);
 
         if (status == Order.OrderStatus.SHIPPED) {
             String normalizedTracking = "ADMIN_FORCE_SHIPPED";
@@ -576,6 +578,12 @@ public class OrderService {
 
         if (status == Order.OrderStatus.DELIVERED && savedOrder.getStoreId() != null) {
             walletService.creditVendorForOrder(savedOrder);
+        }
+
+        if (previousStatus == Order.OrderStatus.DELIVERED
+                && status == Order.OrderStatus.CANCELLED
+                && savedOrder.getStoreId() != null) {
+            walletService.debitVendorForRefund(savedOrder);
         }
 
         if (savedOrder.isSubOrder()) {
@@ -784,24 +792,19 @@ public class OrderService {
             if (itemReq.getProductId() == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product ID is required");
             }
-            Product product = productRepository.findPublicById(itemReq.getProductId())
+            Product product = productRepository.findPublicByIdForUpdate(itemReq.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
             if (product.getStoreId() == null) {
                 throw new ForbiddenException("Marketplace checkout only supports vendor-owned products");
             }
 
-            ProductVariant variant = null;
-            if (itemReq.getVariantId() != null) {
-                variant = productVariantRepository.findById(itemReq.getVariantId())
-                        .filter(found -> found.getProduct().getId().equals(product.getId()))
-                        .filter(found -> Boolean.TRUE.equals(found.getIsActive()))
-                        .orElseThrow(() -> new ResourceNotFoundException("Product variant not found"));
-            }
-
             if (itemReq.getQuantity() == null || itemReq.getQuantity() <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quantity must be greater than 0");
             }
+
+            ProductVariant variant = resolveVariantForCheckout(product, itemReq.getVariantId());
+            reserveStock(product, variant, itemReq.getQuantity());
 
             // Always resolve price server-side to prevent client-side price tampering.
             BigDecimal unitPrice = resolveUnitPrice(product, variant);
@@ -821,6 +824,50 @@ public class OrderService {
         }
 
         return preparedItems;
+    }
+
+    private ProductVariant resolveVariantForCheckout(Product product, UUID variantId) {
+        if (variantId != null) {
+            return productVariantRepository.findByIdForUpdate(variantId)
+                    .filter(found -> found.getProduct().getId().equals(product.getId()))
+                    .filter(found -> Boolean.TRUE.equals(found.getIsActive()))
+                    .orElseThrow(() -> new ResourceNotFoundException("Product variant not found"));
+        }
+
+        List<ProductVariant> activeVariants = productVariantRepository.findByProductIdAndIsActiveTrue(product.getId());
+        if (activeVariants.size() > 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please select a product variant");
+        }
+        if (activeVariants.size() == 1) {
+            UUID onlyVariantId = activeVariants.get(0).getId();
+            return productVariantRepository.findByIdForUpdate(onlyVariantId)
+                    .filter(found -> Boolean.TRUE.equals(found.getIsActive()))
+                    .orElseThrow(() -> new ResourceNotFoundException("Product variant not found"));
+        }
+        return null;
+    }
+
+    private void reserveStock(Product product, ProductVariant variant, int quantity) {
+        if (variant != null) {
+            int available = safeInt(variant.getStockQuantity());
+            if (available < quantity) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient stock for selected variant");
+            }
+
+            variant.setStockQuantity(available - quantity);
+
+            Long activeVariantStock = productVariantRepository.sumActiveStockByProductId(product.getId());
+            int productStock = activeVariantStock == null ? 0 : Math.max(0, activeVariantStock.intValue());
+            product.setStockQuantity(productStock);
+            return;
+        }
+
+        int available = safeInt(product.getStockQuantity());
+        if (available < quantity) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient stock for product");
+        }
+
+        product.setStockQuantity(available - quantity);
     }
 
     private Map<UUID, StoreOrderGroup> groupItemsByStore(List<PreparedOrderItem> preparedItems) {
@@ -1148,7 +1195,19 @@ public class OrderService {
     }
 
     private BigDecimal calculateCommissionFee(StoreOrderGroup group) {
-        return group.subtotal().multiply(DEFAULT_COMMISSION_RATE);
+        Store store = storeRepository.findById(group.storeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+        BigDecimal commissionRatePercent = resolveCommissionRatePercent(store.getCommissionRate());
+        return group.subtotal()
+                .multiply(commissionRatePercent)
+                .divide(COMMISSION_RATE_DIVISOR, 2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolveCommissionRatePercent(BigDecimal rawRate) {
+        if (rawRate == null || rawRate.compareTo(BigDecimal.ZERO) <= 0) {
+            return DEFAULT_COMMISSION_RATE_PERCENT;
+        }
+        return rawRate;
     }
 
     private BigDecimal resolveUnitPrice(Product product, ProductVariant variant) {

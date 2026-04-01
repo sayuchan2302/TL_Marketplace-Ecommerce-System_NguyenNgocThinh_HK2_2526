@@ -290,6 +290,7 @@ public class ProductService {
                 .material(request.getMaterial())
                 .fit(request.getFit())
                 .status(status)
+                .approvalStatus(storeId == null ? Product.ApprovalStatus.APPROVED : Product.ApprovalStatus.PENDING)
                 .build();
 
         if (request.getGender() != null) {

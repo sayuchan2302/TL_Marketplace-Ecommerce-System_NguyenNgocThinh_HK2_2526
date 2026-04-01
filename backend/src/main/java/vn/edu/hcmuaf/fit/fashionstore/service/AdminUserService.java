@@ -104,15 +104,20 @@ public class AdminUserService {
                 .name(user.getName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
+                .avatar(user.getAvatar())
                 .gender(user.getGender())
                 .dateOfBirth(user.getDateOfBirth())
+                .height(user.getHeight())
+                .weight(user.getWeight())
                 .loyaltyPoints(user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() : 0L)
                 .role(user.getRole() != null ? user.getRole().name() : User.Role.CUSTOMER.name())
                 .status(status)
                 .isActive(Boolean.TRUE.equals(user.getIsActive()))
                 .createdAt(safeCreatedAt(user.getCreatedAt()))
+                .updatedAt(safeUpdatedAt(user.getUpdatedAt(), user.getCreatedAt()))
                 .storeId(store != null ? store.getId() : user.getStoreId())
                 .storeName(store != null ? store.getName() : null)
+                .storeSlug(store != null ? store.getSlug() : null)
                 .storeApprovalStatus(store != null ? store.getApprovalStatus().name() : null)
                 .storeStatus(store != null ? store.getStatus().name() : null)
                 .build();
@@ -122,12 +127,25 @@ public class AdminUserService {
         return value != null ? value : LocalDateTime.of(1970, 1, 1, 0, 0);
     }
 
+    private static LocalDateTime safeUpdatedAt(LocalDateTime updatedAt, LocalDateTime createdAt) {
+        if (updatedAt != null) {
+            return updatedAt;
+        }
+        return safeCreatedAt(createdAt);
+    }
+
     private static String normalizeQuery(String q) {
         return q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
     }
 
     private static boolean matchesQuery(AdminUserResponse row, String query) {
-        String text = (safe(row.getName()) + " " + safe(row.getEmail()) + " " + safe(row.getPhone()) + " " + safe(row.getStoreName()))
+        String text = (
+                safe(row.getName())
+                        + " " + safe(row.getEmail())
+                        + " " + safe(row.getPhone())
+                        + " " + safe(row.getStoreName())
+                        + " " + safe(row.getStoreSlug())
+        )
                 .toLowerCase(Locale.ROOT);
         return text.contains(query);
     }

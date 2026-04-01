@@ -12,6 +12,7 @@ import StoreApprovals from './StoreApprovals';
 import AdminFinancials from './AdminFinancials';
 import AdminBotAI from './AdminBotAI';
 import AdminReturns from './AdminReturns';
+import AdminProductGovernance from './AdminProductGovernance';
 import { AdminShellContext, type AdminShellState } from './AdminShellContext';
 import { AdminMountedContext } from './useAdminPageAnimation';
 import AdminLayout from './AdminLayout';
@@ -124,6 +125,7 @@ const AdminWorkspace = () => {
                 <Route path="promotions" element={<AdminPromotions />} />
                 <Route path="reviews" element={<AdminReviews />} />
                 <Route path="stores" element={<StoreApprovals />} />
+                <Route path="product-governance" element={<AdminProductGovernance />} />
                 <Route path="financials" element={<AdminFinancials />} />
                 <Route path="bot-ai" element={<AdminBotAI />} />
                 <Route path="returns" element={<AdminReturns />} />

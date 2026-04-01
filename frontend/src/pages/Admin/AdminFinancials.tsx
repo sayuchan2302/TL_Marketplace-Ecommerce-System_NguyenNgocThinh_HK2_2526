@@ -9,6 +9,7 @@ import { PanelStatsGrid, PanelTabs } from '../../components/Panel/PanelPrimitive
 import { useToast } from '../../contexts/ToastContext';
 import Drawer from '../../components/Drawer/Drawer';
 import { apiRequest } from '../../services/apiClient';
+import { adminDashboardService } from '../../services/adminDashboardService';
 
 interface WalletResponse {
   id: string;
@@ -17,6 +18,17 @@ interface WalletResponse {
   storeSlug?: string | null;
   balance: number;
   lastUpdated: string;
+}
+
+interface WalletPageResponse {
+  content?: WalletResponse[];
+  totalPages?: number;
+}
+
+interface FinancialSnapshot {
+  gmv: number;
+  commission: number;
+  review: number;
 }
 
 type ConfirmState = {
@@ -39,13 +51,46 @@ const AdminFinancials = () => {
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState('all');
+  const [financialSnapshot, setFinancialSnapshot] = useState<FinancialSnapshot>({
+    gmv: 0,
+    commission: 0,
+    review: 0,
+  });
 
   const fetchWallets = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await apiRequest<{ content?: WalletResponse[] }>('/api/wallets', {}, { auth: true });
-      setWallets(data.content || []);
+      const fetchWalletPage = (currentPage: number) =>
+        apiRequest<WalletPageResponse>(
+          `/api/wallets?page=${currentPage}&size=200`,
+          {},
+          { auth: true },
+        );
+
+      const [firstWalletPage, dashboard] = await Promise.all([
+        fetchWalletPage(0),
+        adminDashboardService.get(),
+      ]);
+
+      const allWallets = [...(firstWalletPage.content || [])];
+      const totalPages = Math.max(Number(firstWalletPage.totalPages || 1), 1);
+      for (let currentPage = 1; currentPage < totalPages; currentPage += 1) {
+        const nextPage = await fetchWalletPage(currentPage);
+        allWallets.push(...(nextPage.content || []));
+      }
+
+      setWallets(allWallets);
+      setFinancialSnapshot({
+        gmv: Number(dashboard.metrics.gmvDelivered || 0),
+        commission: Number(dashboard.metrics.commissionDelivered || 0),
+        review: Number(dashboard.quickViews.parentOrdersNeedAttention || 0),
+      });
     } catch {
+      setFinancialSnapshot({
+        gmv: 0,
+        commission: 0,
+        review: 0,
+      });
       addToast('Lỗi khi tải dữ liệu đối soát.', 'error');
     } finally {
       setIsLoading(false);
@@ -71,11 +116,11 @@ const AdminFinancials = () => {
   }, [records, search]);
 
   const totals = useMemo(() => ({
-    gmv: 0,
-    commission: 0,
+    gmv: financialSnapshot.gmv,
+    commission: financialSnapshot.commission,
     payout: records.reduce((sum, record) => sum + record.balance, 0),
-    review: 0,
-  }), [records]);
+    review: financialSnapshot.review,
+  }), [financialSnapshot, records]);
 
   const PAGE_SIZE = 8;
   const totalPages = Math.max(Math.ceil(filteredRecords.length / PAGE_SIZE), 1);
@@ -131,7 +176,7 @@ const AdminFinancials = () => {
           { key: 'gmv', label: 'GMV toàn sàn', value: formatCurrency(totals.gmv), sub: 'Tổng giá trị đơn hàng từ bảng vận hành hiện tại' },
           { key: 'commission', label: 'Commission thực thu', value: formatCurrency(totals.commission), sub: 'Tổng phí sàn từ các đơn đã hoàn tất', tone: 'info' },
           { key: 'payout', label: 'Payout phải trả', value: formatCurrency(totals.payout), sub: 'Tổng số tiền đủ điều kiện giải ngân cho shop', tone: 'success' },
-          { key: 'review', label: 'Cần rà soát', value: totals.review, sub: 'Nhóm đơn có hủy hoặc điều chỉnh cần kiểm tra', tone: totals.review > 0 ? 'danger' : '', onClick: () => setActiveTab('review') },
+          { key: 'review', label: 'Cần rà soát', value: totals.review, sub: 'Đơn cha cần admin xử lý trong dashboard vận hành', tone: totals.review > 0 ? 'danger' : '' },
         ]}
       />
 

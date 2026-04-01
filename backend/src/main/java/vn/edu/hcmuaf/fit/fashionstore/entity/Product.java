@@ -63,6 +63,11 @@ public class Product extends BaseEntity {
     @Builder.Default
     private ProductStatus status = ProductStatus.ACTIVE;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "approval_status", length = 20)
+    @Builder.Default
+    private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
+
     @Column(name = "is_featured")
     @Builder.Default
     private Boolean isFeatured = false;
@@ -84,6 +89,10 @@ public class Product extends BaseEntity {
 
     public enum ProductStatus {
         ACTIVE, INACTIVE, DRAFT, ARCHIVED
+    }
+
+    public enum ApprovalStatus {
+        PENDING, APPROVED, REJECTED, BANNED
     }
 
     public BigDecimal getEffectivePrice() {

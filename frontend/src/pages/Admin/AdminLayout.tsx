@@ -81,6 +81,7 @@ const AdminLayout = ({
     const path = location.pathname;
     if (path.startsWith('/admin/orders/')) return [t.nav.orders, t.breadcrumbs.orderDetail];
     if (path.startsWith('/admin/orders')) return [t.nav.orders, t.breadcrumbs.orderList];
+    if (path.startsWith('/admin/product-governance')) return [t.nav.products, 'Kiểm duyệt'];
     if (path.startsWith('/admin/products')) return [t.nav.products, t.breadcrumbs.productList];
     if (path.startsWith('/admin/categories')) return [t.nav.categories, t.breadcrumbs.categoryList];
     if (path.startsWith('/admin/customers') || path.startsWith('/admin/customer')) return [t.nav.customers, t.breadcrumbs.customerList];

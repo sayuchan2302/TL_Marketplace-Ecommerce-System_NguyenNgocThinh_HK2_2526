@@ -24,7 +24,7 @@ import {
 import { AdminStateBlock } from './AdminStateBlocks';
 import { useAdminToast } from './useAdminToast';
 import { ADMIN_DICTIONARY } from './adminDictionary';
-import { calculateCommission, formatCurrency } from '../../services/commissionService';
+import { formatCurrency } from '../../services/commissionService';
 import { MARKETPLACE_DICTIONARY } from '../../utils/clientDictionary';
 import { getUiErrorMessage } from '../../utils/errorMessage';
 import { toDisplayOrderCode } from '../../utils/displayCode';
@@ -49,6 +49,14 @@ const AdminOrderDetailContent = ({ orderCode, routeId }: { orderCode: string; ro
   const fulfillment = order?.fulfillment || 'pending';
   const paymentStatus = order?.paymentStatus || 'unpaid';
   const timeline = order?.timeline || [];
+  const paymentStatusTone =
+    paymentStatus === 'paid'
+      ? 'success'
+      : paymentStatus === 'refund_pending' || paymentStatus === 'refunded'
+        ? 'error'
+        : paymentStatus === 'cod_uncollected'
+          ? 'pending'
+          : 'neutral';
 
   const statusOptions = useMemo(() => {
     const allowed = new Set<FulfillmentStatus>([fulfillment, ...fulfillmentTransitions[fulfillment]]);
@@ -247,7 +255,8 @@ const AdminOrderDetailContent = ({ orderCode, routeId }: { orderCode: string; ro
             {(() => {
               const commissionRate = order.commissionRate ?? 0;
               const hasCommissionRate = order.commissionRate !== null && order.commissionRate !== undefined;
-              const commissionData = calculateCommission(total, commissionRate);
+              const commissionFee = Number(order.commissionFee || 0);
+              const vendorPayout = Number(order.vendorPayout || 0);
               const storeName = order.storeName || 'Chưa xác định';
               
               return (
@@ -280,11 +289,11 @@ const AdminOrderDetailContent = ({ orderCode, routeId }: { orderCode: string; ro
                     <div style={{ height: 1, background: '#99f6e4', margin: '4px 0' }} />
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                       <span style={{ color: '#475569' }}>{MARKETPLACE_DICTIONARY.commission.fee}</span>
-                      <strong style={{ color: '#d97706' }}>-{formatCurrency(commissionData.commission)}</strong>
+                      <strong style={{ color: '#d97706' }}>-{formatCurrency(commissionFee)}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
                       <span style={{ color: '#475569', fontWeight: 600 }}>{MARKETPLACE_DICTIONARY.commission.payout}</span>
-                      <strong style={{ color: '#0d9488', fontSize: 16 }}>{formatCurrency(commissionData.payout)}</strong>
+                      <strong style={{ color: '#0d9488', fontSize: 16 }}>{formatCurrency(vendorPayout)}</strong>
                     </div>
                   </div>
                 </div>
@@ -298,7 +307,7 @@ const AdminOrderDetailContent = ({ orderCode, routeId }: { orderCode: string; ro
             </div>
             <div className="od-card">
               <div className="od-card-row"><span className="od-label">{t.paymentInfo.method}</span><strong>{order.paymentMethod}</strong></div>
-               <div className="od-card-row"><span className="od-label">{t.paymentInfo.paymentStatus}</span><span className={`admin-pill ${paymentStatus === 'paid' ? 'success' : paymentStatus === 'refund_pending' ? 'error' : 'pending'}`}>{paymentLabel(paymentStatus)}</span></div>
+               <div className="od-card-row"><span className="od-label">{t.paymentInfo.paymentStatus}</span><span className={`admin-pill ${paymentStatusTone}`}>{paymentLabel(paymentStatus)}</span></div>
                <div className="od-card-row"><span className="od-label">{t.paymentInfo.shippingStatus}</span><span className={`admin-pill ${fulfillment === 'done' ? 'success' : fulfillment === 'canceled' ? 'error' : 'pending'}`}><Truck size={14} /> {shipLabel(fulfillment)}</span></div>
               <div className="od-card-row tracking-row">
                 <span className="od-label">{t.trackingNumber}</span>

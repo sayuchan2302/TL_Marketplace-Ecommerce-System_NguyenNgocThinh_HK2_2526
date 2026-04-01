@@ -1,6 +1,6 @@
 import './Admin.css';
 import { Link } from 'react-router-dom';
-import { Truck, Eye, Printer, CheckCircle2 } from 'lucide-react';
+import { Eye, Printer, CheckCircle2 } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import AdminLayout from './AdminLayout';
@@ -42,7 +42,6 @@ interface AdminOrderRow {
   productExtra: string | null;
   total: string;
   paymentStatus: PaymentStatus;
-  shipMethod: string;
   fulfillment: FulfillmentStatus;
   date: string;
 }
@@ -68,7 +67,6 @@ const mapOrderRecordToRow = (order: AdminOrderRecord): AdminOrderRow => {
     productExtra: order.items.length > 1 ? `+${order.items.length - 1} sản phẩm khác` : null,
     total: order.total,
     paymentStatus: order.paymentStatus,
-    shipMethod: order.shipMethod,
     fulfillment: order.fulfillment,
     date: order.date,
   };
@@ -357,7 +355,6 @@ const AdminOrders = () => {
                 <div role="columnheader">Sản phẩm</div>
                 <div role="columnheader" className="text-center">GMV</div>
                 <div role="columnheader">Thanh toán</div>
-                <div role="columnheader">Vận chuyển</div>
                 <div role="columnheader">Ngày tạo</div>
                 <div role="columnheader" className="text-right pr-12">Hành động</div>
               </div>
@@ -389,7 +386,6 @@ const AdminOrders = () => {
                     <div className="customer-text">
                       <p className="admin-bold customer-name">{order.customer}</p>
                       <p className="admin-muted customer-email">{order.email}</p>
-                      <p className="customer-phone">{order.phone}</p>
                     </div>
                   </div>
                   <div role="cell" className="order-product-cell">
@@ -402,14 +398,6 @@ const AdminOrders = () => {
                     <span className={`admin-pill ${tone(paymentLabel(order.paymentStatus))}`}>
                       {paymentLabel(order.paymentStatus)}
                     </span>
-                  </div>
-                  <div role="cell">
-                    <div className="admin-ship">
-                      <span className={`admin-pill ${tone(shipLabel(order.fulfillment))}`}>
-                        <Truck size={14} /> {shipLabel(order.fulfillment)}
-                      </span>
-                      <span className="admin-muted order-ship-method">{order.shipMethod}</span>
-                    </div>
                   </div>
                   <div role="cell" className="admin-muted order-date">{new Date(order.date).toLocaleDateString('vi-VN')}</div>
                   <div role="cell" className="admin-actions" onClick={(event) => event.stopPropagation()}>

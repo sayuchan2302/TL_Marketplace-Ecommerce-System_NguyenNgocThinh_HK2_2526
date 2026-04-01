@@ -497,7 +497,8 @@ const VendorProducts = () => {
       if (!current.variants) {
         return current;
       }
-      const { variants, ...next } = current;
+      const next = { ...current };
+      delete next.variants;
       return next;
     });
   };

@@ -20,7 +20,9 @@ import java.util.UUID;
 @AllArgsConstructor
 @Entity
 @Table(name = "return_requests", indexes = {
-        @Index(name = "idx_return_requests_return_code", columnList = "return_code", unique = true)
+        @Index(name = "idx_return_requests_return_code", columnList = "return_code", unique = true),
+        @Index(name = "idx_return_requests_status", columnList = "status"),
+        @Index(name = "idx_return_requests_store_id", columnList = "store_id")
 })
 public class ReturnRequest extends BaseEntity {
 
@@ -35,6 +37,9 @@ public class ReturnRequest extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(name = "store_id")
+    private UUID storeId;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private ReturnReason reason;
@@ -48,11 +53,32 @@ public class ReturnRequest extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
-    private ReturnStatus status = ReturnStatus.PENDING;
+    private ReturnStatus status = ReturnStatus.PENDING_VENDOR;
 
     @ElementCollection
     @CollectionTable(name = "return_items", joinColumns = @JoinColumn(name = "return_request_id"))
     private List<ReturnItemSnapshot> items = new ArrayList<>();
+
+    @Column(name = "vendor_reason", columnDefinition = "text")
+    private String vendorReason;
+
+    @Column(name = "dispute_reason", columnDefinition = "text")
+    private String disputeReason;
+
+    @Column(name = "shipping_tracking_number")
+    private String shippingTrackingNumber;
+
+    @Column(name = "shipping_carrier")
+    private String shippingCarrier;
+
+    @Column(name = "shipped_at")
+    private LocalDateTime shippedAt;
+
+    @Column(name = "received_at")
+    private LocalDateTime receivedAt;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
 
     @Column(name = "admin_note", columnDefinition = "text")
     private String adminNote;
@@ -69,7 +95,14 @@ public class ReturnRequest extends BaseEntity {
     }
 
     public enum ReturnStatus {
-        PENDING, APPROVED, REJECTED, COMPLETED
+        PENDING_VENDOR,
+        ACCEPTED,
+        SHIPPING,
+        RECEIVED,
+        COMPLETED,
+        REJECTED,
+        DISPUTED,
+        CANCELLED
     }
 
     @Embeddable
@@ -89,6 +122,9 @@ public class ReturnRequest extends BaseEntity {
 
         @Column(name = "image_url")
         private String imageUrl;
+
+        @Column(name = "evidence_url")
+        private String evidenceUrl;
 
         @Column(name = "quantity")
         private Integer quantity;

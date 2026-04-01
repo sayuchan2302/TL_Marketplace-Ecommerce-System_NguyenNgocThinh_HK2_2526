@@ -3,18 +3,21 @@ package vn.edu.hcmuaf.fit.fashionstore.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import vn.edu.hcmuaf.fit.fashionstore.entity.Product;
+import jakarta.persistence.LockModeType;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ProductRepository extends JpaRepository<Product, UUID> {
+public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpecificationExecutor<Product> {
 
     Optional<Product> findBySlug(String slug);
 
@@ -27,6 +30,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @Query("""
             SELECT p FROM Product p
             WHERE p.status = 'ACTIVE'
+              AND (p.approvalStatus = 'APPROVED' OR p.approvalStatus IS NULL)
               AND p.storeId IS NOT NULL
               AND p.storeId IN (
                   SELECT s.id FROM Store s
@@ -40,6 +44,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             SELECT p FROM Product p
             WHERE p.id = :id
               AND p.status = 'ACTIVE'
+              AND (p.approvalStatus = 'APPROVED' OR p.approvalStatus IS NULL)
               AND p.storeId IS NOT NULL
               AND p.storeId IN (
                   SELECT s.id FROM Store s
@@ -49,10 +54,26 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             """)
     Optional<Product> findPublicById(@Param("id") UUID id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT p FROM Product p
+            WHERE p.id = :id
+              AND p.status = 'ACTIVE'
+              AND (p.approvalStatus = 'APPROVED' OR p.approvalStatus IS NULL)
+              AND p.storeId IS NOT NULL
+              AND p.storeId IN (
+                  SELECT s.id FROM Store s
+                  WHERE s.approvalStatus = 'APPROVED'
+                    AND s.status = 'ACTIVE'
+              )
+            """)
+    Optional<Product> findPublicByIdForUpdate(@Param("id") UUID id);
+
     @Query("""
             SELECT p FROM Product p
             WHERE p.slug = :slug
               AND p.status = 'ACTIVE'
+              AND (p.approvalStatus = 'APPROVED' OR p.approvalStatus IS NULL)
               AND p.storeId IS NOT NULL
               AND p.storeId IN (
                   SELECT s.id FROM Store s
@@ -70,6 +91,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                 OR LOWER(COALESCE(v.sku, '')) = LOWER(:sku)
             )
               AND p.status = 'ACTIVE'
+              AND (p.approvalStatus = 'APPROVED' OR p.approvalStatus IS NULL)
               AND p.storeId IS NOT NULL
               AND p.storeId IN (
                   SELECT s.id FROM Store s
@@ -83,10 +105,10 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Page<Product> findByStatus(Product.ProductStatus status, Pageable pageable);
 
-    @Query("SELECT p FROM Product p WHERE p.isFeatured = true AND p.status = 'ACTIVE'")
+    @Query("SELECT p FROM Product p WHERE p.isFeatured = true AND p.status = 'ACTIVE' AND (p.approvalStatus = 'APPROVED' OR p.approvalStatus IS NULL)")
     List<Product> findFeaturedProducts(Pageable pageable);
 
-    @Query("SELECT p FROM Product p WHERE p.status = 'ACTIVE' AND " +
+    @Query("SELECT p FROM Product p WHERE p.status = 'ACTIVE' AND (p.approvalStatus = 'APPROVED' OR p.approvalStatus IS NULL) AND " +
             "(LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
             "LOWER(p.description) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<Product> searchProducts(String keyword, Pageable pageable);
@@ -109,6 +131,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             SELECT p FROM Product p
             WHERE p.storeId = :storeId
               AND p.status = 'ACTIVE'
+              AND (p.approvalStatus = 'APPROVED' OR p.approvalStatus IS NULL)
               AND p.storeId IN (
                   SELECT s.id FROM Store s
                   WHERE s.approvalStatus = 'APPROVED'
@@ -122,6 +145,10 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
      */
     @EntityGraph(attributePaths = {"category", "variants"})
     Optional<Product> findByIdAndStoreId(UUID id, UUID storeId);
+
+    @Override
+    @EntityGraph(attributePaths = {"category", "images"})
+    Page<Product> findAll(org.springframework.data.jpa.domain.Specification<Product> spec, Pageable pageable);
 
     /**
      * Search products within a specific store

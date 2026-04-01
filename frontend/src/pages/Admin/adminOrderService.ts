@@ -34,6 +34,7 @@ interface BackendAdminOrder {
   discount?: number;
   total?: number;
   commissionFee?: number;
+  vendorPayout?: number;
   trackingNumber?: string;
   carrier?: string;
   note?: string;
@@ -103,6 +104,16 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const toErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message.trim() ? error.message : fallback;
 
+const mapPaymentStatus = (status?: string, paymentMethod?: string): PaymentStatus => {
+  const normalizedStatus = (status || '').toUpperCase();
+  const normalizedMethod = (paymentMethod || '').toUpperCase();
+  if (normalizedStatus === 'PAID') return 'paid';
+  if (normalizedStatus === 'REFUND_PENDING') return 'refund_pending';
+  if (normalizedStatus === 'REFUNDED') return 'refunded';
+  if (normalizedMethod === 'COD') return 'cod_uncollected';
+  return 'unpaid';
+};
+
 const mapBackendToAdmin = (order: BackendAdminOrder): AdminOrderRecord => {
   const fulfillmentMap: Record<string, FulfillmentStatus> = {
     PENDING: 'pending',
@@ -135,12 +146,9 @@ const mapBackendToAdmin = (order: BackendAdminOrder): AdminOrderRecord => {
     total: (order.total ?? 0).toLocaleString('vi-VN', { style: 'currency', currency: 'VND' }),
     storeName: order.storeName,
     commissionRate: undefined,
-    paymentStatus:
-      order.paymentStatus === 'PAID'
-        ? 'paid'
-        : order.paymentMethod === 'COD'
-          ? 'cod_uncollected'
-          : 'unpaid',
+    commissionFee: Number(order.commissionFee || 0),
+    vendorPayout: Number(order.vendorPayout || 0),
+    paymentStatus: mapPaymentStatus(order.paymentStatus, order.paymentMethod),
     fulfillment: fulfillmentMap[order.status || ''] || 'pending',
     shipMethod: order.carrier || 'Chưa rõ',
     tracking: order.trackingNumber || '',

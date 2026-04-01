@@ -2,10 +2,15 @@ package vn.edu.hcmuaf.fit.fashionstore.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.edu.hcmuaf.fit.fashionstore.entity.CustomerWallet;
+import vn.edu.hcmuaf.fit.fashionstore.entity.CustomerWalletTransaction;
 import vn.edu.hcmuaf.fit.fashionstore.entity.Order;
 import vn.edu.hcmuaf.fit.fashionstore.entity.VendorWallet;
 import vn.edu.hcmuaf.fit.fashionstore.entity.WalletTransaction;
+import vn.edu.hcmuaf.fit.fashionstore.exception.ForbiddenException;
 import vn.edu.hcmuaf.fit.fashionstore.exception.ResourceNotFoundException;
+import vn.edu.hcmuaf.fit.fashionstore.repository.CustomerWalletRepository;
+import vn.edu.hcmuaf.fit.fashionstore.repository.CustomerWalletTransactionRepository;
 import vn.edu.hcmuaf.fit.fashionstore.repository.OrderRepository;
 import vn.edu.hcmuaf.fit.fashionstore.repository.VendorWalletRepository;
 import vn.edu.hcmuaf.fit.fashionstore.repository.WalletTransactionRepository;
@@ -20,15 +25,21 @@ public class WalletService {
     private final OrderRepository orderRepository;
     private final VendorWalletRepository vendorWalletRepository;
     private final WalletTransactionRepository walletTransactionRepository;
+    private final CustomerWalletRepository customerWalletRepository;
+    private final CustomerWalletTransactionRepository customerWalletTransactionRepository;
     private final PublicCodeService publicCodeService;
 
     public WalletService(OrderRepository orderRepository,
                          VendorWalletRepository vendorWalletRepository,
                          WalletTransactionRepository walletTransactionRepository,
+                         CustomerWalletRepository customerWalletRepository,
+                         CustomerWalletTransactionRepository customerWalletTransactionRepository,
                          PublicCodeService publicCodeService) {
         this.orderRepository = orderRepository;
         this.vendorWalletRepository = vendorWalletRepository;
         this.walletTransactionRepository = walletTransactionRepository;
+        this.customerWalletRepository = customerWalletRepository;
+        this.customerWalletTransactionRepository = customerWalletTransactionRepository;
         this.publicCodeService = publicCodeService;
     }
 
@@ -78,14 +89,35 @@ public class WalletService {
 
     @Transactional
     public void debitVendorForRefund(Order order) {
-        if (!order.isSubOrder()) {
+        if (order == null || order.getId() == null) {
             return;
         }
 
-        VendorWallet wallet = vendorWalletRepository.findByStoreId(order.getStoreId())
-                .orElseGet(() -> createWallet(order.getStoreId()));
+        Order lockedOrder = orderRepository.findByIdForUpdate(order.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 
-        BigDecimal amount = order.getVendorPayout();
+        if (lockedOrder.getStoreId() == null) {
+            return; // Only debit orders that belong to a vendor store
+        }
+
+        if (!walletTransactionRepository.existsByOrderIdAndType(
+                lockedOrder.getId(),
+                WalletTransaction.TransactionType.CREDIT
+        )) {
+            return; // No payout was credited, skip debit
+        }
+
+        if (walletTransactionRepository.existsByOrderIdAndType(
+                lockedOrder.getId(),
+                WalletTransaction.TransactionType.DEBIT
+        )) {
+            return; // Idempotent: refund already debited for this order
+        }
+
+        VendorWallet wallet = vendorWalletRepository.findByStoreId(lockedOrder.getStoreId())
+                .orElseGet(() -> createWallet(lockedOrder.getStoreId()));
+
+        BigDecimal amount = lockedOrder.getVendorPayout();
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
@@ -97,10 +129,10 @@ public class WalletService {
         WalletTransaction transaction = WalletTransaction.builder()
                 .transactionCode(publicCodeService.nextTransactionCode())
                 .wallet(wallet)
-                .orderId(order.getId())
+                .orderId(lockedOrder.getId())
                 .amount(amount)
                 .type(WalletTransaction.TransactionType.DEBIT)
-                .description("Refund for Order " + (order.getOrderCode() != null ? order.getOrderCode() : order.getId()))
+                .description("Refund for Order " + (lockedOrder.getOrderCode() != null ? lockedOrder.getOrderCode() : lockedOrder.getId()))
                 .build();
         
         walletTransactionRepository.save(transaction);
@@ -157,5 +189,71 @@ public class WalletService {
                 .build();
 
         return walletTransactionRepository.save(transaction);
+    }
+
+    @Transactional
+    public void refundToCustomerFromEscrow(UUID returnRequestId, Order order, BigDecimal refundAmount, String reason) {
+        if (returnRequestId == null || order == null || order.getId() == null) {
+            return;
+        }
+        if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        Order lockedOrder = orderRepository.findByIdForUpdate(order.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        if (lockedOrder.getUser() == null || lockedOrder.getUser().getId() == null) {
+            throw new ForbiddenException("Order does not contain a valid customer");
+        }
+
+        boolean alreadyProcessed = customerWalletTransactionRepository.existsByReturnRequestIdAndType(
+                returnRequestId,
+                CustomerWalletTransaction.TransactionType.CREDIT_REFUND
+        );
+        if (alreadyProcessed) {
+            return;
+        }
+
+        CustomerWallet wallet = customerWalletRepository.findByUserId(lockedOrder.getUser().getId())
+                .orElseGet(() -> createCustomerWallet(lockedOrder.getUser().getId()));
+
+        wallet.setBalance(wallet.getBalance().add(refundAmount));
+        wallet.setLastUpdated(LocalDateTime.now());
+        customerWalletRepository.save(wallet);
+
+        CustomerWalletTransaction transaction = CustomerWalletTransaction.builder()
+                .transactionCode(publicCodeService.nextTransactionCode())
+                .wallet(wallet)
+                .orderId(lockedOrder.getId())
+                .returnRequestId(returnRequestId)
+                .amount(refundAmount)
+                .type(CustomerWalletTransaction.TransactionType.CREDIT_REFUND)
+                .description(reason == null || reason.isBlank()
+                        ? "Refund from escrow for Order " + (lockedOrder.getOrderCode() != null ? lockedOrder.getOrderCode() : lockedOrder.getId())
+                        : reason.trim())
+                .build();
+        customerWalletTransactionRepository.save(transaction);
+
+        BigDecimal totalRefunded = customerWalletTransactionRepository.sumAmountByOrderIdAndType(
+                lockedOrder.getId(),
+                CustomerWalletTransaction.TransactionType.CREDIT_REFUND
+        );
+        BigDecimal orderTotal = lockedOrder.getTotal() == null ? BigDecimal.ZERO : lockedOrder.getTotal().max(BigDecimal.ZERO);
+
+        if (orderTotal.compareTo(BigDecimal.ZERO) > 0 && totalRefunded.compareTo(orderTotal) >= 0) {
+            lockedOrder.setPaymentStatus(Order.PaymentStatus.REFUNDED);
+        } else {
+            lockedOrder.setPaymentStatus(Order.PaymentStatus.REFUND_PENDING);
+        }
+        orderRepository.save(lockedOrder);
+    }
+
+    private CustomerWallet createCustomerWallet(UUID userId) {
+        return customerWalletRepository.save(CustomerWallet.builder()
+                .userId(userId)
+                .balance(BigDecimal.ZERO)
+                .lastUpdated(LocalDateTime.now())
+                .build());
     }
 }
