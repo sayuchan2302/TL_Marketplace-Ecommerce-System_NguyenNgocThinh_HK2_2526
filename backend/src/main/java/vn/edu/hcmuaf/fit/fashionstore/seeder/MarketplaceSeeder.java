@@ -149,46 +149,130 @@ public class MarketplaceSeeder implements ApplicationRunner {
         linkVendorStore(vendorBinh, storeBinh);
         linkVendorStore(vendorDuyet, storeChoDuyet);
 
-        Category nam = createCategory("Thời trang nam", "thoi-trang-nam", "Danh mục sản phẩm dành cho nam.", null, 1);
-        Category nu = createCategory("Thời trang nữ", "thoi-trang-nu", "Danh mục sản phẩm dành cho nữ.", null, 2);
-        Category phuKien = createCategory("Phụ kiện", "phu-kien", "Phụ kiện thời trang đi kèm.", null, 3);
-        Category aoThun = createCategory("Áo thun", "ao-thun", "Áo thun cơ bản và nâng cao.", nam, 10);
-        Category quanJean = createCategory("Quần jean", "quan-jean", "Quần jean nhiều phom dáng.", nam, 20);
-        Category damVay = createCategory("Đầm váy", "dam-vay", "Đầm và váy nữ tính.", nu, 10);
-        Category tuiXach = createCategory("Túi xách", "tui-xach", "Túi đeo chéo, tote, clutch.", phuKien, 10);
+        // Category tree 3 tầng: Root (Nam/Nữ/Phụ kiện) -> Nhóm -> Danh mục lá
+        // Lưu ý: Category.name đang unique toàn cục, nên tên có hậu tố nam/nữ để tránh trùng.
+        Category namRoot = createCategory("Nam", "men", "Danh mục gốc cho thời trang nam.", null, 1);
+        Category nuRoot = createCategory("Nữ", "women", "Danh mục gốc cho thời trang nữ.", null, 2);
+        Category phuKienRoot = createCategory("Phụ kiện", "accessories", "Danh mục gốc cho phụ kiện.", null, 3);
+
+        // Level 2 - Nam
+        Category namAo = createCategory("Áo nam", "men-ao", "Nhóm áo dành cho nam.", namRoot, 10);
+        Category namQuan = createCategory("Quần nam", "men-quan", "Nhóm quần dành cho nam.", namRoot, 20);
+        Category namTheThao = createCategory("Đồ thể thao nam", "men-do-the-thao", "Nhóm đồ thể thao nam.", namRoot, 30);
+        Category namMacNha = createCategory("Đồ mặc nhà nam", "men-do-mac-nha", "Nhóm đồ mặc nhà nam.", namRoot, 40);
+
+        // Level 2 - Nữ
+        Category nuAo = createCategory("Áo nữ", "women-ao", "Nhóm áo dành cho nữ.", nuRoot, 10);
+        Category nuVayDam = createCategory("Váy đầm nữ", "women-vay-dam", "Nhóm váy đầm dành cho nữ.", nuRoot, 20);
+        Category nuQuan = createCategory("Quần nữ", "women-quan", "Nhóm quần dành cho nữ.", nuRoot, 30);
+        Category nuTheThao = createCategory("Đồ thể thao nữ", "women-do-the-thao", "Nhóm đồ thể thao nữ.", nuRoot, 40);
+        Category nuMacNha = createCategory("Đồ mặc nhà nữ", "women-do-mac-nha", "Nhóm đồ mặc nhà nữ.", nuRoot, 50);
+
+        // Level 2 - Phụ kiện
+        Category pkTuiVaVi = createCategory("Túi và ví", "accessories-tui-va-vi", "Nhóm túi và ví.", phuKienRoot, 10);
+        Category pkThoiTrang = createCategory("Phụ kiện thời trang", "accessories-phu-kien-thoi-trang", "Nhóm phụ kiện thời trang.", phuKienRoot, 20);
+        Category pkKhac = createCategory("Phụ kiện khác", "accessories-phu-kien-khac", "Nhóm phụ kiện khác.", phuKienRoot, 30);
+
+        // Level 3 - Nam > Áo
+        Category menAoThun = createCategory("Áo thun nam", "men-ao-thun", "Áo thun nam.", namAo, 1);
+        createCategory("Áo polo nam", "men-ao-polo", "Áo polo nam.", namAo, 2);
+        createCategory("Áo sơ mi nam", "men-ao-so-mi", "Áo sơ mi nam.", namAo, 3);
+        createCategory("Áo hoodie nam", "men-ao-hoodie", "Áo hoodie nam.", namAo, 4);
+        createCategory("Áo len nam", "men-ao-len", "Áo len nam.", namAo, 5);
+
+        // Level 3 - Nam > Quần
+        Category menQuanJeans = createCategory("Quần jeans nam", "men-quan-jeans", "Quần jeans nam.", namQuan, 1);
+        createCategory("Quần tây nam", "men-quan-tay", "Quần tây nam.", namQuan, 2);
+        createCategory("Quần kaki nam", "men-quan-kaki", "Quần kaki nam.", namQuan, 3);
+        createCategory("Quần short nam", "men-quan-short", "Quần short nam.", namQuan, 4);
+        createCategory("Quần jogger nam", "men-quan-jogger", "Quần jogger nam.", namQuan, 5);
+
+        // Level 3 - Nam > Đồ thể thao
+        createCategory("Áo thể thao nam", "men-ao-the-thao", "Áo thể thao nam.", namTheThao, 1);
+        createCategory("Quần thể thao nam", "men-quan-the-thao", "Quần thể thao nam.", namTheThao, 2);
+        createCategory("Set thể thao nam", "men-set-the-thao", "Set thể thao nam.", namTheThao, 3);
+
+        // Level 3 - Nam > Đồ mặc nhà
+        createCategory("Áo mặc nhà nam", "men-ao-mac-nha", "Áo mặc nhà nam.", namMacNha, 1);
+        createCategory("Quần mặc nhà nam", "men-quan-mac-nha", "Quần mặc nhà nam.", namMacNha, 2);
+        createCategory("Bộ mặc nhà nam", "men-bo-mac-nha", "Bộ mặc nhà nam.", namMacNha, 3);
+
+        // Level 3 - Nữ > Áo
+        createCategory("Áo thun nữ", "women-ao-thun", "Áo thun nữ.", nuAo, 1);
+        createCategory("Áo kiểu nữ", "women-ao-kieu", "Áo kiểu nữ.", nuAo, 2);
+        createCategory("Áo sơ mi nữ", "women-ao-so-mi", "Áo sơ mi nữ.", nuAo, 3);
+        createCategory("Áo croptop nữ", "women-ao-croptop", "Áo croptop nữ.", nuAo, 4);
+        Category womenAoKhoac = createCategory("Áo khoác nữ", "women-ao-khoac", "Áo khoác nữ.", nuAo, 5);
+
+        // Level 3 - Nữ > Váy/Đầm
+        Category womenVayLien = createCategory("Váy liền nữ", "women-vay-lien", "Váy liền nữ.", nuVayDam, 1);
+        createCategory("Váy dự tiệc nữ", "women-vay-du-tiec", "Váy dự tiệc nữ.", nuVayDam, 2);
+        createCategory("Váy công sở nữ", "women-vay-cong-so", "Váy công sở nữ.", nuVayDam, 3);
+        createCategory("Váy maxi nữ", "women-vay-maxi", "Váy maxi nữ.", nuVayDam, 4);
+
+        // Level 3 - Nữ > Quần
+        createCategory("Quần jeans nữ", "women-quan-jeans", "Quần jeans nữ.", nuQuan, 1);
+        createCategory("Quần short nữ", "women-quan-short", "Quần short nữ.", nuQuan, 2);
+        createCategory("Quần tây nữ", "women-quan-tay", "Quần tây nữ.", nuQuan, 3);
+        createCategory("Quần legging nữ", "women-quan-legging", "Quần legging nữ.", nuQuan, 4);
+
+        // Level 3 - Nữ > Đồ thể thao
+        createCategory("Áo thể thao nữ", "women-ao-the-thao", "Áo thể thao nữ.", nuTheThao, 1);
+        createCategory("Quần thể thao nữ", "women-quan-the-thao", "Quần thể thao nữ.", nuTheThao, 2);
+        createCategory("Set thể thao nữ", "women-set-the-thao", "Set thể thao nữ.", nuTheThao, 3);
+
+        // Level 3 - Nữ > Đồ mặc nhà
+        createCategory("Áo mặc nhà nữ", "women-ao-mac-nha", "Áo mặc nhà nữ.", nuMacNha, 1);
+        createCategory("Quần mặc nhà nữ", "women-quan-mac-nha", "Quần mặc nhà nữ.", nuMacNha, 2);
+        createCategory("Bộ mặc nhà nữ", "women-bo-mac-nha", "Bộ mặc nhà nữ.", nuMacNha, 3);
+
+        // Level 3 - Phụ kiện
+        createCategory("Túi xách", "tui-xach", "Túi xách.", pkTuiVaVi, 1);
+        Category accessoryTuiDeoCheo = createCategory("Túi đeo chéo", "tui-deo-cheo", "Túi đeo chéo.", pkTuiVaVi, 2);
+        createCategory("Balo", "balo", "Balo.", pkTuiVaVi, 3);
+        createCategory("Ví", "vi", "Ví.", pkTuiVaVi, 4);
+
+        createCategory("Nón mũ", "non-mu", "Nón mũ.", pkThoiTrang, 1);
+        createCategory("Thắt lưng", "that-lung", "Thắt lưng.", pkThoiTrang, 2);
+        createCategory("Khăn", "khan", "Khăn.", pkThoiTrang, 3);
+        createCategory("Tất", "tat", "Tất.", pkThoiTrang, 4);
+
+        createCategory("Kính mắt", "kinh-mat", "Kính mắt.", pkKhac, 1);
+        createCategory("Đồng hồ", "dong-ho", "Đồng hồ.", pkKhac, 2);
+        createCategory("Trang sức", "trang-suc", "Trang sức.", pkKhac, 3);
 
         Product aoThunPremium = createProduct(
-                storeAn, aoThun, "Áo thun cotton premium", "ao-thun-cotton-premium",
+                storeAn, menAoThun, "Áo thun cotton premium", "ao-thun-cotton-premium",
                 new BigDecimal("249000"), new BigDecimal("199000"), Product.Gender.UNISEX, Product.ProductStatus.ACTIVE,
                 true, "Cotton compact 240gsm", "Regular fit", "Áo thun mềm mịn, thấm hút tốt, phù hợp mặc hằng ngày.",
                 "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab", "Áo thun cotton premium"
         );
         Product quanJeanSlim = createProduct(
-                storeAn, quanJean, "Quần jean slim wash", "quan-jean-slim-wash",
+                storeAn, menQuanJeans, "Quần jean slim wash", "quan-jean-slim-wash",
                 new BigDecimal("459000"), new BigDecimal("379000"), Product.Gender.MALE, Product.ProductStatus.ACTIVE,
                 false, "Denim co giãn", "Slim fit", "Quần jean ôm vừa, màu wash hiện đại.",
                 "https://images.unsplash.com/photo-1542272604-787c3835535d", "Quần jean slim wash"
         );
         Product damMidi = createProduct(
-                storeBinh, damVay, "Đầm midi hoa nhí", "dam-midi-hoa-nhi",
+                storeBinh, womenVayLien, "Đầm midi hoa nhí", "dam-midi-hoa-nhi",
                 new BigDecimal("529000"), new BigDecimal("449000"), Product.Gender.FEMALE, Product.ProductStatus.ACTIVE,
                 true, "Voan lụa", "Dáng xòe", "Đầm nhẹ, thoáng, phù hợp đi làm và dạo phố.",
                 "https://images.unsplash.com/photo-1496747611176-843222e1e57c", "Đầm midi hoa nhí"
         );
         Product blazerNu = createProduct(
-                storeBinh, damVay, "Áo blazer nữ basic", "ao-blazer-nu-basic",
+                storeBinh, womenAoKhoac, "Áo blazer nữ basic", "ao-blazer-nu-basic",
                 new BigDecimal("699000"), new BigDecimal("599000"), Product.Gender.FEMALE, Product.ProductStatus.ACTIVE,
                 false, "Tweed pha", "Regular fit", "Blazer tối giản, phù hợp môi trường công sở.",
                 "https://images.unsplash.com/photo-1483985988355-763728e1935b", "Áo blazer nữ basic"
         );
         Product tuiDaMem = createProduct(
-                storeBinh, tuiXach, "Túi đeo chéo da mềm", "tui-deo-cheo-da-mem",
+                storeBinh, accessoryTuiDeoCheo, "Túi đeo chéo da mềm", "tui-deo-cheo-da-mem",
                 new BigDecimal("489000"), new BigDecimal("409000"), Product.Gender.UNISEX, Product.ProductStatus.ACTIVE,
                 true, "Da PU cao cấp", "Đeo chéo", "Túi nhỏ gọn, có nhiều ngăn tiện lợi.",
                 "https://images.unsplash.com/photo-1542291026-7eec264c27ff", "Túi đeo chéo da mềm"
         );
         Product sanPhamNhap = createProduct(
-                storeChoDuyet, aoThun, "Áo thun local draft", "ao-thun-local-draft",
+                storeChoDuyet, menAoThun, "Áo thun local draft", "ao-thun-local-draft",
                 new BigDecimal("199000"), BigDecimal.ZERO, Product.Gender.UNISEX, Product.ProductStatus.DRAFT,
                 false, "Cotton 2 chiều", "Regular fit", "Sản phẩm nháp chờ gian hàng được duyệt.",
                 "https://images.unsplash.com/photo-1434389677669-e08b4cac3105", "Áo thun local draft"

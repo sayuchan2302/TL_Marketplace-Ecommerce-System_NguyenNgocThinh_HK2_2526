@@ -105,11 +105,11 @@
 }
 
 .flash-slider-nav.prev-btn {
-  left: -22px;
+  left: -14px;
 }
 
 .flash-slider-nav.next-btn {
-  right: -22px;
+  right: -14px;
 }
 
 .flash-sale-track {
@@ -422,6 +422,6 @@
     width: 36px; 
     height: 36px; 
   }
-  .flash-slider-nav.prev-btn { left: -10px; }
-  .flash-slider-nav.next-btn { right: -10px; }
+  .flash-slider-nav.prev-btn { left: -6px; }
+  .flash-slider-nav.next-btn { right: -6px; }
 }

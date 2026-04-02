@@ -6,10 +6,13 @@ import HeroSlider from '../../components/HeroSlider/HeroSlider';
 import Categories from '../../components/Categories/Categories';
 import ProductSection from '../../components/ProductSection/ProductSection';
 import FlashSaleSection, { type FlashSaleItem } from '../../components/FlashSaleSection/FlashSaleSection';
-import TrustBadges from '../../components/TrustBadges/TrustBadges';
 import { mensFashion, womensFashion } from '../../mocks/products';
 import Skeleton from '../../components/Skeleton/Skeleton';
-import { marketplaceService, type MarketplaceStoreCard } from '../../services/marketplaceService';
+import {
+  marketplaceService,
+  type MarketplaceStoreCard,
+  type MarketplaceHomeCategoryTab,
+} from '../../services/marketplaceService';
 import { useCart } from '../../contexts/CartContext';
 
 interface HomeSectionProduct {
@@ -81,6 +84,7 @@ const fallbackTopVendors: MarketplaceStoreCard[] = [
 const Home = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [featuredStores, setFeaturedStores] = useState<MarketplaceStoreCard[]>([]);
+  const [categoryTabs, setCategoryTabs] = useState<MarketplaceHomeCategoryTab[]>([]);
   const [featuredProducts, setFeaturedProducts] = useState<HomeSectionProduct[]>(fallbackFeaturedProducts);
   const [trendingProducts, setTrendingProducts] = useState<HomeSectionProduct[]>(fallbackTrendingProducts);
   const { addToCart } = useCart();
@@ -94,11 +98,13 @@ const Home = () => {
         if (!mounted) return;
 
         setFeaturedStores(data.featuredStores);
+        setCategoryTabs(data.categoryTabs || []);
         setFeaturedProducts(data.featuredProducts.length > 0 ? data.featuredProducts : fallbackFeaturedProducts);
         setTrendingProducts(data.trendingProducts.length > 0 ? data.trendingProducts : fallbackTrendingProducts);
       } catch {
         if (!mounted) return;
         setFeaturedStores([]);
+        setCategoryTabs([]);
         setFeaturedProducts(fallbackFeaturedProducts);
         setTrendingProducts(fallbackTrendingProducts);
       } finally {
@@ -210,7 +216,11 @@ const Home = () => {
         ) : (
           <>
             <HeroSlider />
-            <Categories featuredStores={featuredStores} showFeaturedStores={false} />
+            <Categories
+              categoryTabs={categoryTabs}
+              featuredStores={featuredStores}
+              showFeaturedStores={false}
+            />
 
             <div className="home-section-gap">
               <FlashSaleSection
@@ -225,7 +235,7 @@ const Home = () => {
                   <div className="top-vendor-title-wrap">
                     <span className="top-vendor-eyebrow">
                       <Store size={14} />
-                      Top Vendor
+                      {'Nh\u00e0 b\u00e1n uy t\u00edn'}
                     </span>
                     <h2>{'Nh\u00e0 b\u00e1n n\u1ed5i b\u1eadt tr\u00ean s\u00e0n'}</h2>
                   </div>
@@ -263,8 +273,6 @@ const Home = () => {
                 viewAllLink="/search?scope=products"
               />
             </div>
-
-            <TrustBadges />
           </>
         )}
       </main>

@@ -13,6 +13,12 @@
   margin-top: var(--space-12);
 }
 
+/* Keep Home section headings visually consistent across blocks */
+.home-page .product-section .section-title {
+  font-size: 1.5rem;
+  letter-spacing: 0.6px;
+}
+
 /* ─── Loading Skeleton ────────────────────────────────────── */
 .home-loading {
   max-width: 1280px;
@@ -223,6 +229,10 @@
 }
 
 @media (max-width: 600px) {
+  .home-page .product-section .section-title {
+    font-size: 1.25rem;
+  }
+
   .top-vendor-section {
     border-radius: var(--radius-md);
     padding: var(--space-6) var(--space-3);

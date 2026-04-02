@@ -1,7 +1,6 @@
 import { useRef, useState, memo } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Heart, Eye, BadgeCheck, Store } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Plus, Heart, Eye, Store } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
 import { useCartAnimation } from '../../context/CartAnimationContext';
 import { useWishlist } from '../../contexts/WishlistContext';
@@ -219,12 +218,6 @@ const ProductCard = ({ id, sku, name, price, originalPrice, image, badge, colors
               <span className="store-link is-disabled">
                 <span>{storeName || 'Người bán'}</span>
               </span>
-            )}
-            {isOfficialStore && (
-              <motion.span className="store-badge-official" whileHover={{ scale: 1.02 }} title="Cửa hàng chính hãng">
-                <BadgeCheck size={11} strokeWidth={2.3} />
-                Mall
-              </motion.span>
             )}
           </div>
         )}

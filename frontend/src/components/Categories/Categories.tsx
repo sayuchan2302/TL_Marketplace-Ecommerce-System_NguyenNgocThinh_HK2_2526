@@ -1,24 +1,48 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Star } from 'lucide-react';
 import './Categories.css';
-import type { MarketplaceStoreCard } from '../../services/marketplaceService';
+import type {
+  MarketplaceStoreCard,
+  MarketplaceHomeCategoryTab,
+} from '../../services/marketplaceService';
 
-const mensCategories = [
-  { id: 'm1', name: '\u00c1O NAM', img: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=400&auto=format&fit=crop' },
-  { id: 'm2', name: 'QU\u1ea6N NAM', img: 'https://images.unsplash.com/photo-1542272454315-4c01d7abdf4a?q=80&w=400&auto=format&fit=crop' },
-  { id: 'm3', name: '\u0110\u1ed2 TH\u1ec2 THAO NAM', img: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop' },
-  { id: 'm4', name: '\u0110\u1ed2 M\u1eb6C NH\u00c0', img: 'https://images.unsplash.com/photo-1618354691438-25af0475c28f?q=80&w=400&auto=format&fit=crop' },
-  { id: 'm5', name: 'PH\u1ee4 KI\u1ec6N NAM', img: 'https://images.unsplash.com/photo-1523206489230-c012c64b2b48?q=80&w=400&auto=format&fit=crop' },
-];
-
-const womensCategories = [
-  { id: 'w1', name: '\u00c1O N\u1eee', img: 'https://images.unsplash.com/photo-1551163943-3f6a855d1153?q=80&w=400&auto=format&fit=crop' },
-  { id: 'w2', name: 'V\u00c1Y / \u0110\u1ea6M', img: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?q=80&w=400&auto=format&fit=crop' },
-  { id: 'w3', name: 'QU\u1ea6N N\u1eee', img: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=400&auto=format&fit=crop' },
-  { id: 'w4', name: '\u0110\u1ed2 M\u1eb6C NH\u00c0', img: 'https://images.unsplash.com/photo-1583496920310-91890e2b96e5?q=80&w=400&auto=format&fit=crop' },
-  { id: 'w5', name: '\u0110\u1ed2 TH\u1ec2 THAO N\u1eee', img: 'https://images.unsplash.com/photo-1580436427382-706f9d45cc4e?q=80&w=400&auto=format&fit=crop' },
-  { id: 'w6', name: 'PH\u1ee4 KI\u1ec6N N\u1eee', img: 'https://images.unsplash.com/photo-1509319117193-57bab727e09d?q=80&w=400&auto=format&fit=crop' },
+const fallbackCategoryTabs: MarketplaceHomeCategoryTab[] = [
+  {
+    id: 'nam',
+    label: 'NAM',
+    slug: 'men',
+    items: [
+      { id: 'm1', name: '\u00c1O NAM', slug: 'men-ao', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=400&auto=format&fit=crop' },
+      { id: 'm2', name: 'QU\u1ea6N NAM', slug: 'men-quan', image: 'https://images.unsplash.com/photo-1542272454315-4c01d7abdf4a?q=80&w=400&auto=format&fit=crop' },
+      { id: 'm3', name: '\u0110\u1ed2 TH\u1ec2 THAO NAM', slug: 'men-do-the-thao', image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop' },
+      { id: 'm4', name: '\u0110\u1ed2 M\u1eb6C NH\u00c0', slug: 'men-do-mac-nha', image: 'https://images.unsplash.com/photo-1618354691438-25af0475c28f?q=80&w=400&auto=format&fit=crop' },
+      { id: 'm5', name: 'PH\u1ee4 KI\u1ec6N NAM', slug: 'men-phu-kien', image: 'https://images.unsplash.com/photo-1523206489230-c012c64b2b48?q=80&w=400&auto=format&fit=crop' },
+    ],
+  },
+  {
+    id: 'nu',
+    label: 'N\u1eee',
+    slug: 'women',
+    items: [
+      { id: 'w1', name: '\u00c1O N\u1eee', slug: 'women-ao', image: 'https://images.unsplash.com/photo-1551163943-3f6a855d1153?q=80&w=400&auto=format&fit=crop' },
+      { id: 'w2', name: 'V\u00c1Y / \u0110\u1ea6M', slug: 'women-vay-dam', image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?q=80&w=400&auto=format&fit=crop' },
+      { id: 'w3', name: 'QU\u1ea6N N\u1eee', slug: 'women-quan', image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=400&auto=format&fit=crop' },
+      { id: 'w4', name: '\u0110\u1ed2 M\u1eb6C NH\u00c0', slug: 'women-do-mac-nha', image: 'https://images.unsplash.com/photo-1583496920310-91890e2b96e5?q=80&w=400&auto=format&fit=crop' },
+      { id: 'w5', name: '\u0110\u1ed2 TH\u1ec2 THAO N\u1eee', slug: 'women-do-the-thao', image: 'https://images.unsplash.com/photo-1580436427382-706f9d45cc4e?q=80&w=400&auto=format&fit=crop' },
+      { id: 'w6', name: 'PH\u1ee4 KI\u1ec6N N\u1eee', slug: 'women-phu-kien', image: 'https://images.unsplash.com/photo-1509319117193-57bab727e09d?q=80&w=400&auto=format&fit=crop' },
+    ],
+  },
+  {
+    id: 'phu-kien',
+    label: 'PH\u1ee4 KI\u1ec6N',
+    slug: 'accessories',
+    items: [
+      { id: 'a1', name: 'T\u00daI & V\u00cd', slug: 'accessories-tui-va-vi', image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=400&auto=format&fit=crop' },
+      { id: 'a2', name: 'PH\u1ee4 KI\u1ec6N TH\u1edcI TRANG', slug: 'accessories-phu-kien-thoi-trang', image: 'https://images.unsplash.com/photo-1523206489230-c012c64b2b48?q=80&w=400&auto=format&fit=crop' },
+      { id: 'a3', name: 'PH\u1ee4 KI\u1ec6N KH\u00c1C', slug: 'accessories-phu-kien-khac', image: 'https://images.unsplash.com/photo-1508296695146-257a814070b4?q=80&w=400&auto=format&fit=crop' },
+    ],
+  },
 ];
 
 const featuredStoresFallback: MarketplaceStoreCard[] = [
@@ -65,39 +89,51 @@ const featuredStoresFallback: MarketplaceStoreCard[] = [
 ];
 
 interface CategoriesProps {
+  categoryTabs?: MarketplaceHomeCategoryTab[];
   featuredStores?: MarketplaceStoreCard[];
   showFeaturedStores?: boolean;
 }
 
-const Categories = ({ featuredStores = featuredStoresFallback, showFeaturedStores = true }: CategoriesProps) => {
-  const [activeTab, setActiveTab] = useState<'nam' | 'nu'>('nam');
-  const currentData = activeTab === 'nam' ? mensCategories : womensCategories;
+const Categories = ({
+  categoryTabs,
+  featuredStores = featuredStoresFallback,
+  showFeaturedStores = true,
+}: CategoriesProps) => {
+  const tabs = useMemo(
+    () => (categoryTabs && categoryTabs.length > 0 ? categoryTabs : fallbackCategoryTabs),
+    [categoryTabs],
+  );
+  const [activeTab, setActiveTab] = useState<string>(tabs[0]?.id || 'nam');
+  const currentTab = tabs.find((tab) => tab.id === activeTab) || tabs[0];
+  const currentData = currentTab?.items || [];
   const visibleStores = featuredStores.length > 0 ? featuredStores : featuredStoresFallback;
-  const toCategorySearchLink = (categoryName: string) =>
-    `/search?scope=products&q=${encodeURIComponent(categoryName)}`;
+  const toCategoryLink = (slug: string) => `/category/${encodeURIComponent(slug)}`;
+
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(tabs[0]?.id || 'nam');
+    }
+  }, [activeTab, tabs]);
 
   return (
     <section className="categories-section container">
       <div className="tab-buttons">
-        <button
-          className={`tab-btn ${activeTab === 'nam' ? 'active' : ''}`}
-          onClick={() => setActiveTab('nam')}
-        >
-          NAM
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'nu' ? 'active' : ''}`}
-          onClick={() => setActiveTab('nu')}
-        >
-          {'N\u1eee'}
-        </button>
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="categories-grid" key={activeTab}>
         {currentData.map((cat) => (
-          <Link to={toCategorySearchLink(cat.name)} key={cat.id} className="category-card">
+          <Link to={toCategoryLink(cat.slug)} key={cat.id} className="category-card">
             <div className="category-img-wrapper">
-              <img src={cat.img} alt={cat.name} className="category-img" />
+              <img src={cat.image} alt={cat.name} className="category-img" />
             </div>
             <span className="category-name">{cat.name}</span>
           </Link>

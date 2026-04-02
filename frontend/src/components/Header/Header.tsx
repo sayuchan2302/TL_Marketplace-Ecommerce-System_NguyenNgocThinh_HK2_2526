@@ -10,11 +10,125 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { searchService } from '../../services/searchService';
+import {
+  marketplaceService,
+  type MarketplaceHeaderCategoryRoot,
+} from '../../services/marketplaceService';
 import { CLIENT_TEXT } from '../../utils/texts';
 import { CLIENT_TOAST_MESSAGES } from '../../utils/clientMessages';
 import './Header.css';
 
 type SearchScope = 'products' | 'stores';
+
+const FALLBACK_HEADER_CATEGORY_TREE: MarketplaceHeaderCategoryRoot[] = [
+  {
+    id: 'nam',
+    label: 'NAM',
+    slug: 'men',
+    children: [
+      {
+        id: 'men-ao',
+        name: 'Áo nam',
+        slug: 'men-ao',
+        children: [
+          { id: 'men-ao-thun', name: 'Áo thun nam', slug: 'men-ao-thun' },
+          { id: 'men-ao-polo', name: 'Áo polo nam', slug: 'men-ao-polo' },
+          { id: 'men-ao-so-mi', name: 'Áo sơ mi nam', slug: 'men-ao-so-mi' },
+          { id: 'men-ao-hoodie', name: 'Áo hoodie nam', slug: 'men-ao-hoodie' },
+        ],
+      },
+      {
+        id: 'men-quan',
+        name: 'Quần nam',
+        slug: 'men-quan',
+        children: [
+          { id: 'men-quan-jeans', name: 'Quần jeans nam', slug: 'men-quan-jeans' },
+          { id: 'men-quan-tay', name: 'Quần tây nam', slug: 'men-quan-tay' },
+          { id: 'men-quan-kaki', name: 'Quần kaki nam', slug: 'men-quan-kaki' },
+          { id: 'men-quan-short', name: 'Quần short nam', slug: 'men-quan-short' },
+        ],
+      },
+      {
+        id: 'men-do-the-thao',
+        name: 'Đồ thể thao nam',
+        slug: 'men-do-the-thao',
+        children: [
+          { id: 'men-ao-the-thao', name: 'Áo thể thao nam', slug: 'men-ao-the-thao' },
+          { id: 'men-quan-the-thao', name: 'Quần thể thao nam', slug: 'men-quan-the-thao' },
+          { id: 'men-set-the-thao', name: 'Set thể thao nam', slug: 'men-set-the-thao' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'nu',
+    label: 'NỮ',
+    slug: 'women',
+    children: [
+      {
+        id: 'women-ao',
+        name: 'Áo nữ',
+        slug: 'women-ao',
+        children: [
+          { id: 'women-ao-thun', name: 'Áo thun nữ', slug: 'women-ao-thun' },
+          { id: 'women-ao-kieu', name: 'Áo kiểu nữ', slug: 'women-ao-kieu' },
+          { id: 'women-ao-so-mi', name: 'Áo sơ mi nữ', slug: 'women-ao-so-mi' },
+          { id: 'women-ao-khoac', name: 'Áo khoác nữ', slug: 'women-ao-khoac' },
+        ],
+      },
+      {
+        id: 'women-vay-dam',
+        name: 'Váy đầm nữ',
+        slug: 'women-vay-dam',
+        children: [
+          { id: 'women-vay-lien', name: 'Váy liền nữ', slug: 'women-vay-lien' },
+          { id: 'women-vay-du-tiec', name: 'Váy dự tiệc nữ', slug: 'women-vay-du-tiec' },
+          { id: 'women-vay-cong-so', name: 'Váy công sở nữ', slug: 'women-vay-cong-so' },
+        ],
+      },
+      {
+        id: 'women-quan',
+        name: 'Quần nữ',
+        slug: 'women-quan',
+        children: [
+          { id: 'women-quan-jeans', name: 'Quần jeans nữ', slug: 'women-quan-jeans' },
+          { id: 'women-quan-short', name: 'Quần short nữ', slug: 'women-quan-short' },
+          { id: 'women-quan-tay', name: 'Quần tây nữ', slug: 'women-quan-tay' },
+          { id: 'women-quan-legging', name: 'Quần legging nữ', slug: 'women-quan-legging' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'phu-kien',
+    label: 'PHỤ KIỆN',
+    slug: 'accessories',
+    children: [
+      {
+        id: 'accessories-tui-va-vi',
+        name: 'Túi và ví',
+        slug: 'accessories-tui-va-vi',
+        children: [
+          { id: 'tui-xach', name: 'Túi xách', slug: 'tui-xach' },
+          { id: 'tui-deo-cheo', name: 'Túi đeo chéo', slug: 'tui-deo-cheo' },
+          { id: 'balo', name: 'Balo', slug: 'balo' },
+          { id: 'vi', name: 'Ví', slug: 'vi' },
+        ],
+      },
+      {
+        id: 'accessories-phu-kien-thoi-trang',
+        name: 'Phụ kiện thời trang',
+        slug: 'accessories-phu-kien-thoi-trang',
+        children: [
+          { id: 'non-mu', name: 'Nón mũ', slug: 'non-mu' },
+          { id: 'that-lung', name: 'Thắt lưng', slug: 'that-lung' },
+          { id: 'khan', name: 'Khăn', slug: 'khan' },
+          { id: 'tat', name: 'Tất', slug: 'tat' },
+        ],
+      },
+    ],
+  },
+];
 
 const Header = () => {
   const navigate = useNavigate();
@@ -31,9 +145,10 @@ const Header = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const { unreadCount } = useNotifications();
   const [searchScope, setSearchScope] = useState<SearchScope>('products');
+  const [categoryTree, setCategoryTree] = useState<MarketplaceHeaderCategoryRoot[]>(FALLBACK_HEADER_CATEGORY_TREE);
 
   const toggleMobileSubMenu = (menuId: string) => {
-    setExpandedMobileMenu(prev => prev === menuId ? null : menuId);
+    setExpandedMobileMenu((prev) => (prev === menuId ? null : menuId));
   };
 
   const closeMobileMenu = () => {
@@ -41,7 +156,6 @@ const Header = () => {
     setExpandedMobileMenu(null);
   };
 
-  // Pulse animation state
   const [isBouncing, setIsBouncing] = useState(false);
   const prevItemsRef = React.useRef(totalItems);
 
@@ -53,7 +167,23 @@ const Header = () => {
     prevItemsRef.current = totalItems;
   }, [totalItems]);
 
-const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => {
+  React.useEffect(() => {
+    let mounted = true;
+
+    const loadCategoryTree = async () => {
+      const rows = await marketplaceService.getHeaderCategoryTree();
+      if (mounted && rows.length > 0) {
+        setCategoryTree(rows);
+      }
+    };
+
+    void loadCategoryTree();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => {
     if (query.trim()) {
       searchService.addToHistory(query);
       setSearchValue(query);
@@ -65,10 +195,17 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
     }
   };
 
+  const toCategoryLink = (slug?: string) => {
+    const normalized = (slug || '').trim();
+    if (!normalized) {
+      return '/category/all';
+    }
+    return `/category/${encodeURIComponent(normalized)}`;
+  };
+
   return (
     <header className="header">
       <div className="header-container container">
-        {/* Logo */}
         <div className="header-logo">
           <Link to="/">
             <svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="logo-icon">
@@ -80,155 +217,32 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
           </Link>
         </div>
 
-        {/* Navigation */}
         <nav className="header-nav">
           <ul className="nav-list">
-          <li className="nav-item has-mega-menu">
-              <Link to="/category/men" className="nav-link">NAM</Link>
-              <div className="mega-menu">
-                <div className="mega-menu-content">
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">ÁO</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/men-ao-thun">Áo thun</Link></li>
-                      <li><Link to="/category/men-ao-polo">Áo polo</Link></li>
-                      <li><Link to="/category/men-ao-so-mi">Áo sơ mi</Link></li>
-                      <li><Link to="/category/men-ao-hoodie">Áo hoodie</Link></li>
-                      <li><Link to="/category/men-ao-len">Áo len</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">QUẦN</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/men-quan-jeans">Quần jeans</Link></li>
-                      <li><Link to="/category/men-quan-tay">Quần tay</Link></li>
-                      <li><Link to="/category/men-quan-kaki">Quần kaki</Link></li>
-                      <li><Link to="/category/men-quan-short">Quần short</Link></li>
-                      <li><Link to="/category/men-quan-jogger">Quần jogger</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">ĐỒ THỂ THAO</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/men-ao-the-thao">Áo thể thao</Link></li>
-                      <li><Link to="/category/men-quan-the-thao">Quần thể thao</Link></li>
-                      <li><Link to="/category/men-set-the-thao">Set thể thao</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">ĐỒ MẶC NHÀ</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/men-ao-mac-nha">Áo mặc nhà</Link></li>
-                      <li><Link to="/category/men-quan-mac-nha">Quần mặc nhà</Link></li>
-                      <li><Link to="/category/men-bo-mac-nha">Bộ mặc nhà</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">PHỤ KIỆN</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/men-non-mu">Nón / mũ</Link></li>
-                      <li><Link to="/category/men-that-lung">Thắt lưng</Link></li>
-                      <li><Link to="/category/men-vi">Ví</Link></li>
-                      <li><Link to="/category/men-tat">Tất</Link></li>
-                    </ul>
+            {categoryTree.map((root) => (
+              <li key={root.id} className="nav-item has-mega-menu">
+                <Link to={toCategoryLink(root.slug)} className="nav-link">{root.label}</Link>
+                <div className="mega-menu">
+                  <div className="mega-menu-content">
+                    {root.children.map((group) => (
+                      <div key={group.id} className="mega-menu-col">
+                        <h3 className="mega-menu-title">{group.name}</h3>
+                        <ul className="mega-menu-list">
+                          {(group.children.length > 0
+                            ? group.children
+                            : [{ id: `${group.id}-all`, name: `Tất cả ${group.name}`, slug: group.slug }]
+                          ).map((leaf) => (
+                            <li key={leaf.id}>
+                              <Link to={toCategoryLink(leaf.slug)}>{leaf.name}</Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            </li>
-
-            <li className="nav-item has-mega-menu">
-              <Link to="/category/women" className="nav-link">NỮ</Link>
-              <div className="mega-menu">
-                <div className="mega-menu-content">
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">ÁO</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/women-ao-thun">Áo thun</Link></li>
-                      <li><Link to="/category/women-ao-kieu">Áo kiểu</Link></li>
-                      <li><Link to="/category/women-ao-so-mi">Áo sơ mi</Link></li>
-                      <li><Link to="/category/women-ao-croptop">Áo croptop</Link></li>
-                      <li><Link to="/category/women-ao-khoac">Áo khoác</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">VÁY / ĐẦM</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/women-vay-lien">Váy liền</Link></li>
-                      <li><Link to="/category/women-vay-du-tiec">Váy dự tiệc</Link></li>
-                      <li><Link to="/category/women-vay-cong-so">Váy công sở</Link></li>
-                      <li><Link to="/category/women-vay-maxi">Váy maxi</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">QUẦN</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/women-quan-jeans">Quần jeans</Link></li>
-                      <li><Link to="/category/women-quan-short">Quần short</Link></li>
-                      <li><Link to="/category/women-quan-tay">Quần tay</Link></li>
-                      <li><Link to="/category/women-quan-legging">Quần legging</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">ĐỒ THỂ THAO</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/women-ao-the-thao">Áo thể thao</Link></li>
-                      <li><Link to="/category/women-quan-the-thao">Quần thể thao</Link></li>
-                      <li><Link to="/category/women-set-the-thao">Set thể thao</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">ĐỒ MẶC NHÀ</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/women-ao-mac-nha">Áo mặc nhà</Link></li>
-                      <li><Link to="/category/women-quan-mac-nha">Quần mặc nhà</Link></li>
-                      <li><Link to="/category/women-bo-mac-nha">Bộ mặc nhà</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">PHỤ KIỆN</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/women-tui-xach">Túi xách</Link></li>
-                      <li><Link to="/category/women-non-mu">Nón / mũ</Link></li>
-                      <li><Link to="/category/women-khan">Khăn</Link></li>
-                      <li><Link to="/category/women-that-lung">Thắt lưng</Link></li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </li>
-            <li className="nav-item has-mega-menu">
-              <Link to="/category/accessories" className="nav-link">PHỤ KIỆN</Link>
-              <div className="mega-menu">
-                <div className="mega-menu-content">
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">Túi & ví</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/tui-xach">Túi xách</Link></li>
-                      <li><Link to="/category/tui-deo-cheo">Túi đeo chéo</Link></li>
-                      <li><Link to="/category/balo">Balo</Link></li>
-                      <li><Link to="/category/vi">Ví</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">Phụ kiện thời trang</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/non-mu">Nón / mũ</Link></li>
-                      <li><Link to="/category/that-lung">Thắt lưng</Link></li>
-                      <li><Link to="/category/khan">Khăn</Link></li>
-                      <li><Link to="/category/tat">Tất</Link></li>
-                    </ul>
-                  </div>
-                  <div className="mega-menu-col">
-                    <h3 className="mega-menu-title">Phụ kiện khác (tuỳ shop)</h3>
-                    <ul className="mega-menu-list">
-                      <li><Link to="/category/kinh-mat">Kính mát</Link></li>
-                      <li><Link to="/category/dong-ho">Đồng hồ</Link></li>
-                      <li><Link to="/category/trang-suc">Trang sức</Link></li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </li>
+              </li>
+            ))}
             <li>
               <Link to="/category/sale" className="nav-link nav-sale">
                 <div className="sale-content">
@@ -240,7 +254,6 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
           </ul>
         </nav>
 
-        {/* Actions */}
         <div className="header-actions">
           <form className="search-box" onSubmit={(e) => { e.preventDefault(); handleSearchSubmit(searchValue); }}>
             <label className="search-scope-wrap" htmlFor="header-search-scope">
@@ -261,7 +274,7 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
               placeholder={searchScope === 'stores' ? 'Tìm tên cửa hàng...' : CLIENT_TEXT.search.dropdown.placeholder}
               className="search-input"
               value={searchValue}
-              onChange={e => setSearchValue(e.target.value)}
+              onChange={(e) => setSearchValue(e.target.value)}
               onFocus={() => setIsSearchDropdownOpen(true)}
               aria-label={CLIENT_TEXT.common.actions.search}
             />
@@ -280,7 +293,7 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
                 <Link to="/register" className="auth-link">Đăng ký</Link>
               </div>
             ) : (
-              <div 
+              <div
                 className="account-menu"
                 onMouseEnter={() => setIsAccountMenuOpen(true)}
                 onMouseLeave={() => setIsAccountMenuOpen(false)}
@@ -310,28 +323,25 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
                   <button className="account-item" onClick={() => { navigate('/profile?tab=reviews'); setIsAccountMenuOpen(false); }}>
                     {CLIENT_TEXT.profile.tabs.reviews}
                   </button>
-                  
-                  {/* Portal Switcher - Apple/Stripe Style */}
+
                   {(user?.role === 'VENDOR' || user?.role === 'SUPER_ADMIN') && (
                     <>
                       <div className="account-dropdown-divider"></div>
                       <div className="portal-switcher-label">Chuyển kênh</div>
                       {user?.role === 'VENDOR' && (
                         <button className="account-item portal-item" onClick={() => { navigate('/vendor/dashboard'); setIsAccountMenuOpen(false); }}>
-                          {/* <span className="portal-icon">🏪</span> */}
                           <span>Kênh Người Bán</span>
                           {!user?.isApprovedVendor && <span className="portal-badge pending">Chờ duyệt</span>}
                         </button>
                       )}
                       {user?.role === 'SUPER_ADMIN' && (
                         <button className="account-item portal-item" onClick={() => { navigate('/admin'); setIsAccountMenuOpen(false); }}>
-                          {/* <span className="portal-icon">⚡</span> */}
                           <span>Quản Trị Sàn</span>
                         </button>
                       )}
                     </>
                   )}
-                  
+
                   <div className="account-dropdown-divider"></div>
                   <button className="account-item logout" onClick={() => { logout(); addToast(CLIENT_TOAST_MESSAGES.auth.logoutSuccess, 'info'); setIsAccountMenuOpen(false); navigate('/'); }}>
                     Đăng xuất
@@ -340,8 +350,7 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
               </div>
             )}
           </div>
-          
-          {/* Portal Quick Access - For VENDOR/SUPER_ADMIN */}
+
           {isAuthenticated && (user?.role === 'VENDOR' || user?.role === 'SUPER_ADMIN') && (
             <button
               className={`portal-quick-btn ${user?.role?.toLowerCase()}`}
@@ -351,23 +360,23 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
               {user?.role === 'SUPER_ADMIN' ? <LayoutGrid size={18} /> : <Store size={18} />}
             </button>
           )}
-          
+
           <button ref={wishlistIconRef} className="icon-btn wishlist-btn" aria-label="Yêu thích" onClick={() => navigate('/wishlist')}>
             <Heart size={22} />
             {wishlistCount > 0 && <span className="icon-badge">{wishlistCount > 99 ? '99+' : wishlistCount}</span>}
           </button>
           <button
             ref={cartIconRef}
-            className={`icon-btn cart-btn ${isBouncing ? 'icon-bounce' : ''}`} 
-            aria-label="Giỏ hàng" 
+            className={`icon-btn cart-btn ${isBouncing ? 'icon-bounce' : ''}`}
+            aria-label="Giỏ hàng"
             onClick={() => navigate('/cart')}
           >
             <ShoppingCart size={22} />
             {totalItems > 0 && <span className="icon-badge">{totalItems > 99 ? '99+' : totalItems}</span>}
           </button>
           {isAuthenticated && (
-            <button 
-              className="icon-btn notification-btn" 
+            <button
+              className="icon-btn notification-btn"
               aria-label="Thông báo"
               onClick={() => setIsNotificationOpen(true)}
             >
@@ -375,24 +384,20 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
               {unreadCount > 0 && <span className="icon-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
             </button>
           )}
-          <NotificationDropdown 
-            isOpen={isNotificationOpen} 
-            onClose={() => setIsNotificationOpen(false)} 
+          <NotificationDropdown
+            isOpen={isNotificationOpen}
+            onClose={() => setIsNotificationOpen(false)}
           />
-          
-        </div>
-        {/* Mobile Menu Button */}
-          <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} aria-label="Menu">
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
 
-      {/* Mobile Drawer Overlay */}
+        </div>
+        <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} aria-label="Menu">
+          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
+
       {isMobileMenuOpen && <button className="mobile-overlay" onClick={closeMobileMenu} aria-label="Đóng menu" />}
 
-      {/* Mobile Drawer */}
       <div className={`mobile-drawer ${isMobileMenuOpen ? 'open' : ''}`}>
-        {/* Mobile Search */}
         <form className="mobile-search" onSubmit={(e) => { e.preventDefault(); if (searchValue.trim()) { handleSearchSubmit(searchValue); closeMobileMenu(); } }}>
           <select
             className="mobile-search-scope"
@@ -408,61 +413,58 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
             type="text"
             placeholder={searchScope === 'stores' ? 'Tìm cửa hàng...' : 'Tìm kiếm sản phẩm...'}
             value={searchValue}
-            onChange={e => setSearchValue(e.target.value)}
+            onChange={(e) => setSearchValue(e.target.value)}
           />
         </form>
 
-        {/* Mobile Nav */}
         <nav className="mobile-nav">
-          <div className="mobile-nav-group">
-            <button className="mobile-nav-link" onClick={() => toggleMobileSubMenu('men')} aria-label="Danh mục Nam">
-              NAM <ChevronDown size={16} className={expandedMobileMenu === 'men' ? 'rotated' : ''} aria-hidden="true" />
-            </button>
-            {expandedMobileMenu === 'men' && (
-              <div className="mobile-sub-menu">
-                <Link to="/category/men" onClick={closeMobileMenu}>Tất cả sản phẩm Nam</Link>
-                <Link to="/category/men-ao-thun" onClick={closeMobileMenu}>Áo thun</Link>
-                <Link to="/category/men-ao-polo" onClick={closeMobileMenu}>Áo polo</Link>
-                <Link to="/category/men-quan-jeans" onClick={closeMobileMenu}>Quần jeans</Link>
-                <Link to="/category/men-quan-short" onClick={closeMobileMenu}>Quần short</Link>
-                <Link to="/category/men-ao-hoodie" onClick={closeMobileMenu}>Áo hoodie</Link>
-              </div>
-            )}
-          </div>
-
-          <div className="mobile-nav-group">
-            <button className="mobile-nav-link" onClick={() => toggleMobileSubMenu('women')} aria-label="Danh mục Nữ">
-              NỮ <ChevronDown size={16} className={expandedMobileMenu === 'women' ? 'rotated' : ''} aria-hidden="true" />
-            </button>
-            {expandedMobileMenu === 'women' && (
-              <div className="mobile-sub-menu">
-                <Link to="/category/women" onClick={closeMobileMenu}>Tất cả sản phẩm Nữ</Link>
-                <Link to="/category/women-ao-thun" onClick={closeMobileMenu}>Áo thun</Link>
-                <Link to="/category/women-vay-lien" onClick={closeMobileMenu}>Váy liền</Link>
-                <Link to="/category/women-quan-jeans" onClick={closeMobileMenu}>Quần jeans</Link>
-                <Link to="/category/women-ao-khoac" onClick={closeMobileMenu}>Áo khoác</Link>
-              </div>
-            )}
-          </div>
-
-          <div className="mobile-nav-group">
-            <button className="mobile-nav-link" onClick={() => toggleMobileSubMenu('acc')} aria-label="Danh mục Phụ kiện">
-              PHỤ KIỆN <ChevronDown size={16} className={expandedMobileMenu === 'acc' ? 'rotated' : ''} aria-hidden="true" />
-            </button>
-            {expandedMobileMenu === 'acc' && (
-              <div className="mobile-sub-menu">
-                <Link to="/category/accessories" onClick={closeMobileMenu}>Tất cả phụ kiện</Link>
-                <Link to="/category/tui-xach" onClick={closeMobileMenu}>Túi xách</Link>
-                <Link to="/category/non-mu" onClick={closeMobileMenu}>Nón / mũ</Link>
-                <Link to="/category/that-lung" onClick={closeMobileMenu}>Thắt lưng</Link>
-              </div>
-            )}
-          </div>
+          {categoryTree.map((root) => (
+            <div className="mobile-nav-group" key={root.id}>
+              <button
+                className="mobile-nav-link"
+                onClick={() => toggleMobileSubMenu(root.id)}
+                aria-label={`Danh mục ${root.label}`}
+              >
+                {root.label}
+                <ChevronDown
+                  size={16}
+                  className={expandedMobileMenu === root.id ? 'rotated' : ''}
+                  aria-hidden="true"
+                />
+              </button>
+              {expandedMobileMenu === root.id && (
+                <div className="mobile-sub-menu">
+                  <Link to={toCategoryLink(root.slug)} className="mobile-sub-menu-root" onClick={closeMobileMenu}>
+                    {`Tất cả ${root.label}`}
+                  </Link>
+                  {root.children.map((group) => (
+                    <div key={group.id} className="mobile-sub-menu-group">
+                      <Link to={toCategoryLink(group.slug)} className="mobile-sub-menu-group-title" onClick={closeMobileMenu}>
+                        {group.name}
+                      </Link>
+                      {(group.children.length > 0
+                        ? group.children
+                        : [{ id: `${group.id}-all`, name: `Tất cả ${group.name}`, slug: group.slug }]
+                      ).map((leaf) => (
+                        <Link
+                          key={leaf.id}
+                          to={toCategoryLink(leaf.slug)}
+                          className="mobile-sub-menu-child"
+                          onClick={closeMobileMenu}
+                        >
+                          {leaf.name}
+                        </Link>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
 
           <Link to="/category/sale" className="mobile-nav-link mobile-sale" onClick={closeMobileMenu}>🔥 SALE -50%</Link>
         </nav>
 
-        {/* Mobile Auth */}
         <div className="mobile-auth">
           {!isAuthenticated ? (
             <>
@@ -492,7 +494,6 @@ const handleSearchSubmit = (query: string, scope: SearchScope = searchScope) => 
           )}
         </div>
 
-        {/* Mobile Quick Links */}
         <div className="mobile-quick-links">
           <Link to="/wishlist" onClick={closeMobileMenu}><Heart size={18} /> Yêu thích {wishlistCount > 0 && `(${wishlistCount})`}</Link>
           <Link to={isAuthenticated ? '/profile?tab=orders' : '/login'} onClick={closeMobileMenu}><Search size={18} /> Đơn hàng</Link>

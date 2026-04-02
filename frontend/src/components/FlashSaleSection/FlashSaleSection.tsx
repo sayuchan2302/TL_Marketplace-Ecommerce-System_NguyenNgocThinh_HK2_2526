@@ -126,7 +126,7 @@ const FlashSaleSection = ({
                       <svg viewBox="0 0 24 24" className="flash-badge-icon" aria-hidden="true">
                         <path d="M13 2 4 14h6l-1 8 9-12h-6z" />
                       </svg>
-                      Sale
+                      {'Gi\u1ea3m'}
                     </span>
 
                     {discountPercent > 0 && (

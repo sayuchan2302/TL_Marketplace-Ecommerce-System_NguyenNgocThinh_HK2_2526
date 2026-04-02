@@ -113,7 +113,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
             "LOWER(p.description) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<Product> searchProducts(String keyword, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"category", "images", "variants"})
+    @EntityGraph(attributePaths = {"category", "images"})
     @Query("""
             SELECT p FROM Product p
             WHERE p.status = 'ACTIVE'
@@ -127,7 +127,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
             """)
     Page<Product> findPublicMarketplaceProducts(Pageable pageable);
 
-    @EntityGraph(attributePaths = {"category", "images", "variants"})
+    @EntityGraph(attributePaths = {"category", "images"})
     @Query("""
             SELECT p FROM Product p
             WHERE p.status = 'ACTIVE'
@@ -142,7 +142,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
             """)
     Page<Product> findPublicFeaturedMarketplaceProducts(Pageable pageable);
 
-    @EntityGraph(attributePaths = {"category", "images", "variants"})
+    @EntityGraph(attributePaths = {"category", "images"})
     @Query("""
             SELECT DISTINCT p FROM Product p
             WHERE p.status = 'ACTIVE'
@@ -165,7 +165,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
             Pageable pageable
     );
 
-    @Query("SELECT p FROM Product p LEFT JOIN FETCH p.images LEFT JOIN FETCH p.variants WHERE p.id = :id")
+    @Query("SELECT DISTINCT p FROM Product p LEFT JOIN FETCH p.images WHERE p.id = :id")
     Optional<Product> findByIdWithDetails(UUID id);
 
     // ─── Multi-vendor: Store-scoped queries ────────────────────────────────────
@@ -173,7 +173,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     /**
      * Find all products belonging to a specific store (vendor)
      */
-    @EntityGraph(attributePaths = {"category", "variants"})
+    @EntityGraph(attributePaths = {"category"})
     Page<Product> findByStoreId(UUID storeId, Pageable pageable);
 
     /**
@@ -195,7 +195,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     /**
      * Find product by ID only if it belongs to the specified store (ownership check)
      */
-    @EntityGraph(attributePaths = {"category", "variants"})
+    @EntityGraph(attributePaths = {"category"})
     Optional<Product> findByIdAndStoreId(UUID id, UUID storeId);
 
     @Override
