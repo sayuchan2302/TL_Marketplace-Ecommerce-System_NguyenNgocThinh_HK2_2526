@@ -32,6 +32,7 @@ const formatShortNumber = (value: number) => {
 };
 
 const getProductLink = (product: StoreProduct) => product.slug || product.sku || String(product.id);
+const PRODUCTS_BATCH_SIZE = 12;
 
 const buildLoginRedirectTarget = () => {
   if (typeof window === 'undefined') return '/login';
@@ -76,6 +77,7 @@ const StoreProfilePage = () => {
   const [followSubmitting, setFollowSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<StoreTab>('browse');
+  const [visibleProductsCount, setVisibleProductsCount] = useState(PRODUCTS_BATCH_SIZE);
   const [isTabPending, startTabTransition] = useTransition();
   const [visitedTabs, setVisitedTabs] = useState<Record<StoreTab, boolean>>({
     browse: true,
@@ -144,6 +146,10 @@ const StoreProfilePage = () => {
     };
   }, [slug]);
 
+  useEffect(() => {
+    setVisibleProductsCount(PRODUCTS_BATCH_SIZE);
+  }, [products.length, slug]);
+
   const handleToggleFollow = async () => {
     if (!store || followSubmitting) return;
 
@@ -182,14 +188,6 @@ const StoreProfilePage = () => {
     [products],
   );
 
-  const newArrivals = useMemo(
-    () =>
-      [...products]
-        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-        .slice(0, 8),
-    [products],
-  );
-
   const groupedByCategory = useMemo(() => {
     const groups = new Map<string, StoreProduct[]>();
     for (const product of products) {
@@ -200,6 +198,18 @@ const StoreProfilePage = () => {
     }
     return Array.from(groups.entries()).map(([name, rows]) => ({ name, rows }));
   }, [products]);
+
+  const visibleProducts = useMemo(
+    () => products.slice(0, visibleProductsCount),
+    [products, visibleProductsCount],
+  );
+  const hasMoreProducts = visibleProductsCount < products.length;
+
+  const handleLoadMoreProducts = () => {
+    startTabTransition(() => {
+      setVisibleProductsCount((prev) => Math.min(prev + PRODUCTS_BATCH_SIZE, products.length));
+    });
+  };
 
   const renderGrid = (rows: StoreProduct[]) => {
     if (rows.length === 0) {
@@ -336,38 +346,38 @@ const StoreProfilePage = () => {
         </section>
 
         <section className="storefront-section">
-          <div className="storefront-panel">
-            <h2>Voucher cửa hàng</h2>
-            {vouchers.length === 0 ? (
-              <p className="storefront-empty">Hiện chưa có voucher công khai cho gian hàng này.</p>
-            ) : (
-              <div className="storefront-voucher-list">
-                {vouchers.slice(0, 10).map((voucher) => (
-                  <article key={voucher.id || voucher.code} className="storefront-voucher">
-                    <div className="storefront-voucher-cut storefront-voucher-cut-left" />
-                    <div className="storefront-voucher-cut storefront-voucher-cut-right" />
-                    <div className="storefront-voucher-content">
-                      <div>
-                        <p className="storefront-voucher-code">{voucher.code}</p>
-                        <p className="storefront-voucher-text">
-                          {voucher.type === 'percent'
-                            ? `Giảm ${voucher.value}%`
-                            : `Giảm ${formatCurrency(voucher.value)}`}
-                        </p>
-                        <p className="storefront-voucher-meta">
-                          Đơn tối thiểu {formatCurrency(voucher.minOrderValue || 0)}
-                        </p>
-                      </div>
-                      <TicketPercent size={18} />
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-
           {visitedTabs.browse ? (
             <div className={`storefront-tab-panel ${activeTab === 'browse' ? 'is-active' : ''}`} hidden={activeTab !== 'browse'}>
+              <div className="storefront-panel">
+                <h2>Voucher cửa hàng</h2>
+                {vouchers.length === 0 ? (
+                  <p className="storefront-empty">Hiện chưa có voucher công khai cho gian hàng này.</p>
+                ) : (
+                  <div className="storefront-voucher-list">
+                    {vouchers.slice(0, 10).map((voucher) => (
+                      <article key={voucher.id || voucher.code} className="storefront-voucher">
+                        <div className="storefront-voucher-cut storefront-voucher-cut-left" />
+                        <div className="storefront-voucher-cut storefront-voucher-cut-right" />
+                        <div className="storefront-voucher-content">
+                          <div>
+                            <p className="storefront-voucher-code">{voucher.code}</p>
+                            <p className="storefront-voucher-text">
+                              {voucher.type === 'percent'
+                                ? `Giảm ${voucher.value}%`
+                                : `Giảm ${formatCurrency(voucher.value)}`}
+                            </p>
+                            <p className="storefront-voucher-meta">
+                              Đơn tối thiểu {formatCurrency(voucher.minOrderValue || 0)}
+                            </p>
+                          </div>
+                          <TicketPercent size={18} />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="storefront-panel storefront-campaign">
                 <img
                   src={store.banner || PLACEHOLDER_BANNER}
@@ -390,14 +400,6 @@ const StoreProfilePage = () => {
                 </div>
                 {renderGrid(topSellingProducts)}
               </div>
-
-              <div className="storefront-panel">
-                <div className="storefront-panel-head">
-                  <h2>Hàng mới về</h2>
-                  <span>{newArrivals.length} sản phẩm</span>
-                </div>
-                {renderGrid(newArrivals)}
-              </div>
             </div>
           ) : null}
 
@@ -406,9 +408,23 @@ const StoreProfilePage = () => {
               <div className="storefront-panel">
                 <div className="storefront-panel-head">
                   <h2>Tất cả sản phẩm</h2>
-                  <span>{products.length} sản phẩm</span>
+                  <span>
+                    Hiển thị {Math.min(visibleProducts.length, products.length)}/{products.length}
+                  </span>
                 </div>
-                {renderGrid(products)}
+                {renderGrid(visibleProducts)}
+                {hasMoreProducts ? (
+                  <div className="storefront-load-more-wrap">
+                    <button
+                      type="button"
+                      className="storefront-load-more-btn"
+                      onClick={handleLoadMoreProducts}
+                      disabled={isTabPending}
+                    >
+                      {isTabPending ? 'Đang tải...' : 'Xem thêm sản phẩm'}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : null}

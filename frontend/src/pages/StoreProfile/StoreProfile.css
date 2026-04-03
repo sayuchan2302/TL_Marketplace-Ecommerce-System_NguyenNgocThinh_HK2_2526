@@ -318,6 +318,35 @@
   display: contents;
 }
 
+.storefront-load-more-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.storefront-load-more-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #1e293b;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.storefront-load-more-btn:hover:not(:disabled) {
+  border-color: #1d4ed8;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.storefront-load-more-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .storefront-stack {
   display: flex;
   flex-direction: column;
