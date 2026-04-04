@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition, useCallback, memo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { BadgeCheck, ChevronLeft, Mail, MapPin, MessageCircle, Phone, ShoppingBag, Star, TicketPercent, Users } from 'lucide-react';
 import { storeService, type StoreProduct, type StoreProfile } from '../../services/storeService';
@@ -42,8 +42,12 @@ const loadAllStoreProducts = async (storeId: string, pageSize = 60): Promise<Sto
 
   if (totalPages <= 1) return rows;
 
+  // Lấy thêm tối đa 4 trang nữa (Tổng 300 sản phẩm) thay vì gọi tất cả các trang
+  // để tránh nghẽn server và lag browser (DDoS API).
+  const maxPagesToFetch = Math.min(totalPages, 5);
+
   const remainingCalls: Array<Promise<Awaited<ReturnType<typeof storeService.getStoreProducts>>>> = [];
-  for (let page = 2; page <= totalPages; page += 1) {
+  for (let page = 2; page <= maxPagesToFetch; page += 1) {
     remainingCalls.push(storeService.getStoreProducts(storeId, page, pageSize));
   }
 
@@ -69,7 +73,7 @@ interface StoreProductCardProps {
   onQuickAdd?: (item: any) => void;
 }
 
-const StoreProductCard = ({ product, storeName, onQuickAdd }: StoreProductCardProps) => (
+const StoreProductCard = memo(({ product, storeName, onQuickAdd }: StoreProductCardProps) => (
   <ProductCard
     staticMode
     id={getProductLink(product)}
@@ -88,7 +92,8 @@ const StoreProductCard = ({ product, storeName, onQuickAdd }: StoreProductCardPr
     isOfficialStore={product.isOfficialStore}
     onQuickAdd={onQuickAdd}
   />
-);
+));
+StoreProductCard.displayName = 'StoreProductCard';
 
 const StoreProfilePage = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -171,7 +176,7 @@ const StoreProfilePage = () => {
 
   const { addToCart } = useCart();
 
-  const handleQuickAdd = (item: any) => {
+  const handleQuickAdd = useCallback((item: any) => {
     addToCart({
       id: String(item.id),
       backendProductId: item.backendId,
@@ -186,7 +191,7 @@ const StoreProfilePage = () => {
       storeName: item.storeName || 'Cửa hàng',
       isOfficialStore: item.isOfficialStore || false,
     });
-  };
+  }, [addToCart]);
 
   const handleToggleFollow = async () => {
     if (!store || followSubmitting) return;
