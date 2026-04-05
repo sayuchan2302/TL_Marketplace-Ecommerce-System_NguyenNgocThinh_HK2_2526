@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import vn.edu.hcmuaf.fit.fashionstore.dto.request.OrderRequest;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.AdminOrderResponse;
+import vn.edu.hcmuaf.fit.fashionstore.dto.response.OrderTreeResponseDto;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.VendorOrderDetailResponse;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.VendorOrderPageResponse;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.VendorTopProductResponse;
@@ -64,6 +65,14 @@ public class OrderController {
         return ResponseEntity.ok(orderService.getCustomerOrderById(id, ctx.getUserId()));
     }
 
+    @GetMapping("/{id}/tree")
+    public ResponseEntity<OrderTreeResponseDto> getOrderTree(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable UUID id) {
+        UserContext ctx = authContext.fromAuthHeader(authHeader);
+        return ResponseEntity.ok(orderService.getCustomerOrderTree(id, ctx.getUserId()));
+    }
+
     @GetMapping("/code/{code}")
     public ResponseEntity<AdminOrderResponse> getOrderByCode(
             @RequestHeader("Authorization") String authHeader,
@@ -73,6 +82,14 @@ public class OrderController {
             return ResponseEntity.ok(orderService.getAdminOrderByCode(code));
         }
         return ResponseEntity.ok(orderService.getCustomerOrderByCode(code, ctx.getUserId()));
+    }
+
+    @GetMapping("/code/{code}/tree")
+    public ResponseEntity<OrderTreeResponseDto> getOrderTreeByCode(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable String code) {
+        UserContext ctx = authContext.fromAuthHeader(authHeader);
+        return ResponseEntity.ok(orderService.getCustomerOrderTreeByCode(code, ctx.getUserId()));
     }
 
     /**

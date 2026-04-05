@@ -956,6 +956,50 @@ body {
   justify-self: start;
 }
 
+.admin-input {
+  min-width: 320px;
+  border: 1px solid var(--co-gray-200);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.order-tree-table {
+  overflow: visible;
+}
+
+.order-tree-parent-row {
+  border-bottom: 1px solid var(--co-gray-100);
+}
+
+.order-tree-toggle {
+  width: 34px;
+  height: 34px;
+}
+
+.order-tree-sub-table {
+  background: #f8fafc;
+  border-top: 1px dashed var(--co-gray-200);
+}
+
+.order-tree-sub-head,
+.order-tree-sub-row {
+  grid-template-columns: 220px minmax(220px, 1.3fr) 180px 160px 90px minmax(140px, 1fr);
+}
+
+.order-tree-sub-head {
+  background: #f1f5f9;
+}
+
+.order-tree-sub-row {
+  padding-left: 22px;
+}
+
+.order-tree-sub-code {
+  font-weight: 700;
+}
+
 .orders-actions {
   display: grid;
   grid-template-columns: repeat(2, 32px);
@@ -3984,16 +4028,15 @@ input:disabled,
 
 .admin-table-row.returns-row {
   grid-template-columns:
-    minmax(152px, 1.1fr)
-    minmax(180px, 1.35fr)
-    minmax(230px, 1.8fr)
-    minmax(120px, 0.95fr)
-    minmax(128px, 0.92fr)
-    minmax(150px, 1.05fr)
-    minmax(146px, 0.96fr)
-    minmax(132px, 0.9fr);
+    minmax(136px, 1.02fr)
+    minmax(158px, 1.2fr)
+    minmax(198px, 1.55fr)
+    minmax(102px, 0.82fr)
+    minmax(114px, 0.86fr)
+    minmax(126px, 0.9fr)
+    minmax(100px, 0.72fr);
   align-items: center;
-  min-width: 1220px;
+  min-width: 920px;
 }
 
 .admin-table-row.returns-row > div {
@@ -4037,8 +4080,8 @@ input:disabled,
 }
 
 .admin-table-row.returns-row .returns-actions {
-  justify-content: flex-end;
-  justify-self: end;
+  justify-content: center;
+  justify-self: center;
 }
 
 @media (max-width: 1200px) {
@@ -4053,16 +4096,15 @@ input:disabled,
 
   .admin-table-row.returns-row {
     grid-template-columns:
-      minmax(136px, 1fr)
-      minmax(160px, 1.2fr)
-      minmax(200px, 1.45fr)
-      minmax(108px, 0.9fr)
-      minmax(112px, 0.9fr)
-      minmax(132px, 0.95fr)
-      minmax(130px, 0.92fr)
-      minmax(112px, 0.88fr);
+      minmax(126px, 0.95fr)
+      minmax(146px, 1.1fr)
+      minmax(182px, 1.35fr)
+      minmax(98px, 0.8fr)
+      minmax(104px, 0.82fr)
+      minmax(116px, 0.84fr)
+      minmax(88px, 0.62fr);
     font-size: 13px;
-    min-width: 1130px;
+    min-width: 860px;
   }
 }
 

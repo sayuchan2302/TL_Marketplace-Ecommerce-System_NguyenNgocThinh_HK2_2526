@@ -15,13 +15,19 @@ import vn.edu.hcmuaf.fit.fashionstore.dto.response.VendorOrderDetailResponse;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.VendorOrderPageResponse;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.VendorOrderSummaryResponse;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.AdminOrderResponse;
+import vn.edu.hcmuaf.fit.fashionstore.dto.response.OrderTreeResponseDto;
+import vn.edu.hcmuaf.fit.fashionstore.dto.response.ParentOrderSummaryDto;
+import vn.edu.hcmuaf.fit.fashionstore.dto.response.SubOrderSummaryDto;
+import vn.edu.hcmuaf.fit.fashionstore.dto.response.VendorSubOrderPageResponse;
 import vn.edu.hcmuaf.fit.fashionstore.entity.*;
 import vn.edu.hcmuaf.fit.fashionstore.exception.ForbiddenException;
 import vn.edu.hcmuaf.fit.fashionstore.exception.ResourceNotFoundException;
 import vn.edu.hcmuaf.fit.fashionstore.repository.*;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
@@ -247,6 +253,56 @@ public class OrderService {
         return toVendorOrderDetailResponse(findByCodeForStore(orderCode, storeId));
     }
 
+    @Transactional(readOnly = true)
+    public VendorSubOrderPageResponse getVendorSubOrderPage(
+            UUID storeId,
+            Order.OrderStatus status,
+            String keyword,
+            LocalDateTime fromDate,
+            LocalDateTime toDate,
+            Pageable pageable
+    ) {
+        Page<Order> page = findByStoreIdFiltered(storeId, status, keyword, fromDate, toDate, pageable);
+        Map<UUID, String> storeNames = buildStoreNameMap(page.getContent());
+
+        return VendorSubOrderPageResponse.builder()
+                .content(page.getContent().stream()
+                        .map(order -> toSubOrderSummaryDto(order, storeNames))
+                        .toList())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .number(page.getNumber())
+                .size(page.getSize())
+                .statusCounts(buildVendorSubOrderStatusCounts(storeId))
+                .build();
+    }
+
+    @Transactional
+    public VendorOrderDetailResponse updateVendorDelayNote(UUID orderId, UUID storeId, String warehouseNote) {
+        String normalizedNote = normalizeRequiredText(
+                warehouseNote,
+                "Delay reason is required"
+        );
+        Order order = findByIdForStore(orderId, storeId);
+        if (order.getStatus() == Order.OrderStatus.DELIVERED || order.getStatus() == Order.OrderStatus.CANCELLED) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Cannot add delay note for delivered or cancelled order"
+            );
+        }
+
+        order.setWarehouseNote(normalizedNote);
+        String delayAuditNote = "Delay note: " + normalizedNote;
+        String currentNote = order.getNote() == null ? "" : order.getNote().trim();
+        order.setNote(currentNote.isEmpty() ? delayAuditNote : currentNote + "\n" + delayAuditNote);
+
+        Order saved = orderRepository.save(order);
+        if (saved.isSubOrder()) {
+            syncParentOrderStatus(saved.getParentOrder().getId());
+        }
+        return toVendorOrderDetailResponse(saved);
+    }
+
     /**
      * Get order count for a store
      */
@@ -259,6 +315,18 @@ public class OrderService {
      */
     public long countByStoreIdAndStatus(UUID storeId, Order.OrderStatus status) {
         return orderRepository.countByStoreIdAndStatus(storeId, status);
+    }
+
+    private VendorSubOrderPageResponse.StatusCounts buildVendorSubOrderStatusCounts(UUID storeId) {
+        return VendorSubOrderPageResponse.StatusCounts.builder()
+                .all(countByStoreId(storeId))
+                .pending(countByStoreIdAndStatus(storeId, Order.OrderStatus.PENDING))
+                .confirmed(countByStoreIdAndStatus(storeId, Order.OrderStatus.CONFIRMED))
+                .processing(countByStoreIdAndStatus(storeId, Order.OrderStatus.PROCESSING))
+                .shipped(countByStoreIdAndStatus(storeId, Order.OrderStatus.SHIPPED))
+                .delivered(countByStoreIdAndStatus(storeId, Order.OrderStatus.DELIVERED))
+                .cancelled(countByStoreIdAndStatus(storeId, Order.OrderStatus.CANCELLED))
+                .build();
     }
 
     private VendorOrderPageResponse.StatusCounts buildVendorStatusCounts(UUID storeId) {
@@ -325,6 +393,77 @@ public class OrderService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ParentOrderSummaryDto> getAdminParentOrderSummaries() {
+        List<Order> rootOrders = orderRepository.findByParentOrderIsNullOrderByCreatedAtDesc();
+        if (rootOrders.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> parentOrderIds = rootOrders.stream()
+                .map(Order::getId)
+                .toList();
+        List<Order> subOrders = orderRepository.findByParentOrderIdInWithItemsOrderByCreatedAtDesc(parentOrderIds);
+        Map<UUID, List<Order>> subOrdersByParent = groupSubOrdersByParent(subOrders);
+
+        List<Order> ordersForStoreLookup = new ArrayList<>(rootOrders);
+        ordersForStoreLookup.addAll(subOrders);
+        Map<UUID, String> storeNames = buildStoreNameMap(ordersForStoreLookup);
+
+        return rootOrders.stream()
+                .map(rootOrder -> toParentOrderSummaryDto(rootOrder, subOrdersByParent, storeNames))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public OrderTreeResponseDto getCustomerOrderTree(UUID orderId, UUID userId) {
+        return buildCustomerOrderTree(findByIdForUser(orderId, userId), userId);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderTreeResponseDto getCustomerOrderTreeByCode(String orderCode, UUID userId) {
+        return buildCustomerOrderTree(findByCodeForUser(orderCode, userId), userId);
+    }
+
+    private OrderTreeResponseDto buildCustomerOrderTree(Order selectedOrder, UUID userId) {
+        Order rootOrder = selectedOrder.getParentOrder() != null
+                ? findByIdForUser(selectedOrder.getParentOrder().getId(), userId)
+                : selectedOrder;
+
+        List<Order> dbSubOrders = orderRepository.findByParentOrderIdWithItemsOrderByCreatedAtDesc(rootOrder.getId());
+        boolean syntheticSingleSubOrder = dbSubOrders.isEmpty() && rootOrder.getStoreId() != null;
+        List<Order> normalizedSubOrders = syntheticSingleSubOrder ? List.of(rootOrder) : dbSubOrders;
+        Map<UUID, String> storeNames = buildStoreNameMap(normalizedSubOrders);
+
+        List<OrderTreeResponseDto.SubOrderNode> subOrderNodes = normalizedSubOrders.stream()
+                .sorted(Comparator.comparing(Order::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .map(order -> toOrderTreeSubOrderNode(order, storeNames))
+                .toList();
+
+        List<OrderTreeResponseDto.ItemNode> rootItems = normalizedSubOrders.isEmpty()
+                ? toOrderTreeItemNodes(rootOrder.getItems())
+                : List.of();
+
+        return OrderTreeResponseDto.builder()
+                .id(rootOrder.getId())
+                .code(rootOrder.getOrderCode())
+                .status(rootOrder.getStatus())
+                .paymentMethod(rootOrder.getPaymentMethod())
+                .paymentStatus(rootOrder.getPaymentStatus())
+                .subtotal(rootOrder.getSubtotal())
+                .shippingFee(rootOrder.getShippingFee())
+                .discount(rootOrder.getDiscount())
+                .totalAmount(rootOrder.getTotal())
+                .splitOrder(!syntheticSingleSubOrder && !normalizedSubOrders.isEmpty())
+                .createdAt(rootOrder.getCreatedAt())
+                .updatedAt(rootOrder.getUpdatedAt())
+                .customer(toOrderTreeCustomer(rootOrder))
+                .shippingAddress(toOrderTreeAddress(rootOrder))
+                .subOrders(subOrderNodes)
+                .items(rootItems)
+                .build();
+    }
+
     private AdminOrderResponse toAdminOrderResponse(Order order) {
         String storeName = order.getStoreId() != null 
             ? storeRepository.findById(order.getStoreId()).map(Store::getName).orElse("Unknown Store")
@@ -371,6 +510,176 @@ public class OrderService {
                         .image(item.getProductImage())
                         .build()).toList())
                 .build();
+    }
+
+    private ParentOrderSummaryDto toParentOrderSummaryDto(
+            Order rootOrder,
+            Map<UUID, List<Order>> subOrdersByParent,
+            Map<UUID, String> storeNames
+    ) {
+        List<Order> normalizedSubOrders = resolveSubOrdersForRoot(rootOrder, subOrdersByParent);
+        List<SubOrderSummaryDto> subOrderDtos = normalizedSubOrders.stream()
+                .sorted(Comparator.comparing(Order::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .map(subOrder -> toSubOrderSummaryDto(subOrder, storeNames))
+                .toList();
+
+        int itemCount = subOrderDtos.stream()
+                .map(SubOrderSummaryDto::getItemCount)
+                .filter(value -> value != null)
+                .mapToInt(Integer::intValue)
+                .sum();
+
+        return ParentOrderSummaryDto.builder()
+                .id(rootOrder.getId())
+                .code(rootOrder.getOrderCode())
+                .status(rootOrder.getStatus())
+                .paymentMethod(rootOrder.getPaymentMethod())
+                .paymentStatus(rootOrder.getPaymentStatus())
+                .subtotal(rootOrder.getSubtotal())
+                .shippingFee(rootOrder.getShippingFee())
+                .discount(rootOrder.getDiscount())
+                .totalAmount(rootOrder.getTotal())
+                .subOrderCount(subOrderDtos.size())
+                .itemCount(itemCount)
+                .createdAt(rootOrder.getCreatedAt())
+                .updatedAt(rootOrder.getUpdatedAt())
+                .customer(ParentOrderSummaryDto.Customer.builder()
+                        .name(rootOrder.getUser() != null ? rootOrder.getUser().getName() : null)
+                        .email(rootOrder.getUser() != null ? rootOrder.getUser().getEmail() : null)
+                        .phone(rootOrder.getUser() != null ? rootOrder.getUser().getPhone() : null)
+                        .build())
+                .shippingAddress(ParentOrderSummaryDto.Address.builder()
+                        .fullName(rootOrder.getShippingAddress() != null ? rootOrder.getShippingAddress().getFullName() : null)
+                        .phone(rootOrder.getShippingAddress() != null ? rootOrder.getShippingAddress().getPhone() : null)
+                        .address(rootOrder.getShippingAddress() != null ? rootOrder.getShippingAddress().getDetail() : null)
+                        .ward(rootOrder.getShippingAddress() != null ? rootOrder.getShippingAddress().getWard() : null)
+                        .district(rootOrder.getShippingAddress() != null ? rootOrder.getShippingAddress().getDistrict() : null)
+                        .city(rootOrder.getShippingAddress() != null ? rootOrder.getShippingAddress().getProvince() : null)
+                        .build())
+                .subOrders(subOrderDtos)
+                .build();
+    }
+
+    private List<Order> resolveSubOrdersForRoot(Order rootOrder, Map<UUID, List<Order>> subOrdersByParent) {
+        List<Order> foundSubOrders = subOrdersByParent.getOrDefault(rootOrder.getId(), List.of());
+        if (!foundSubOrders.isEmpty()) {
+            return foundSubOrders;
+        }
+        if (rootOrder.getStoreId() != null) {
+            return List.of(rootOrder);
+        }
+        return List.of();
+    }
+
+    private Map<UUID, List<Order>> groupSubOrdersByParent(List<Order> subOrders) {
+        Map<UUID, List<Order>> grouped = new HashMap<>();
+        for (Order subOrder : subOrders) {
+            if (subOrder.getParentOrder() == null || subOrder.getParentOrder().getId() == null) {
+                continue;
+            }
+            grouped.computeIfAbsent(subOrder.getParentOrder().getId(), ignored -> new ArrayList<>()).add(subOrder);
+        }
+        return grouped;
+    }
+
+    private Map<UUID, String> buildStoreNameMap(List<Order> orders) {
+        List<UUID> storeIds = orders.stream()
+                .map(Order::getStoreId)
+                .filter(value -> value != null)
+                .distinct()
+                .toList();
+        if (storeIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, String> storeNames = new HashMap<>();
+        for (Store store : storeRepository.findAllById(storeIds)) {
+            storeNames.put(store.getId(), store.getName());
+        }
+        return storeNames;
+    }
+
+    private SubOrderSummaryDto toSubOrderSummaryDto(Order subOrder, Map<UUID, String> storeNames) {
+        return SubOrderSummaryDto.builder()
+                .id(subOrder.getId())
+                .code(subOrder.getOrderCode())
+                .vendorId(subOrder.getStoreId())
+                .vendorName(subOrder.getStoreId() == null ? null : storeNames.getOrDefault(subOrder.getStoreId(), "Unknown Store"))
+                .status(subOrder.getStatus())
+                .subtotal(subOrder.getSubtotal())
+                .shippingFee(subOrder.getShippingFee())
+                .commissionAmount(subOrder.getCommissionFee())
+                .total(subOrder.getTotal())
+                .trackingNumber(subOrder.getTrackingNumber())
+                .warehouseNote(subOrder.getWarehouseNote())
+                .itemCount(subOrder.getItems() == null ? 0 : subOrder.getItems().size())
+                .createdAt(subOrder.getCreatedAt())
+                .updatedAt(subOrder.getUpdatedAt())
+                .customer(SubOrderSummaryDto.Customer.builder()
+                        .name(subOrder.getUser() != null ? subOrder.getUser().getName() : null)
+                        .email(subOrder.getUser() != null ? subOrder.getUser().getEmail() : null)
+                        .phone(subOrder.getUser() != null ? subOrder.getUser().getPhone() : null)
+                        .build())
+                .build();
+    }
+
+    private OrderTreeResponseDto.Customer toOrderTreeCustomer(Order order) {
+        return OrderTreeResponseDto.Customer.builder()
+                .name(order.getUser() != null ? order.getUser().getName() : null)
+                .email(order.getUser() != null ? order.getUser().getEmail() : null)
+                .phone(order.getUser() != null ? order.getUser().getPhone() : null)
+                .build();
+    }
+
+    private OrderTreeResponseDto.Address toOrderTreeAddress(Order order) {
+        return OrderTreeResponseDto.Address.builder()
+                .fullName(order.getShippingAddress() != null ? order.getShippingAddress().getFullName() : null)
+                .phone(order.getShippingAddress() != null ? order.getShippingAddress().getPhone() : null)
+                .address(order.getShippingAddress() != null ? order.getShippingAddress().getDetail() : null)
+                .ward(order.getShippingAddress() != null ? order.getShippingAddress().getWard() : null)
+                .district(order.getShippingAddress() != null ? order.getShippingAddress().getDistrict() : null)
+                .city(order.getShippingAddress() != null ? order.getShippingAddress().getProvince() : null)
+                .build();
+    }
+
+    private OrderTreeResponseDto.SubOrderNode toOrderTreeSubOrderNode(Order subOrder, Map<UUID, String> storeNames) {
+        return OrderTreeResponseDto.SubOrderNode.builder()
+                .id(subOrder.getId())
+                .code(subOrder.getOrderCode())
+                .vendorId(subOrder.getStoreId())
+                .vendorName(subOrder.getStoreId() == null ? null : storeNames.getOrDefault(subOrder.getStoreId(), "Unknown Store"))
+                .status(subOrder.getStatus())
+                .subtotal(subOrder.getSubtotal())
+                .shippingFee(subOrder.getShippingFee())
+                .discount(subOrder.getDiscount())
+                .totalAmount(subOrder.getTotal())
+                .commissionAmount(subOrder.getCommissionFee())
+                .trackingNumber(subOrder.getTrackingNumber())
+                .warehouseNote(subOrder.getWarehouseNote())
+                .createdAt(subOrder.getCreatedAt())
+                .updatedAt(subOrder.getUpdatedAt())
+                .items(toOrderTreeItemNodes(subOrder.getItems()))
+                .build();
+    }
+
+    private List<OrderTreeResponseDto.ItemNode> toOrderTreeItemNodes(List<OrderItem> items) {
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+        return items.stream()
+                .map(item -> OrderTreeResponseDto.ItemNode.builder()
+                        .id(item.getId())
+                        .productId(item.getProduct() != null ? item.getProduct().getId() : null)
+                        .variantId(item.getVariant() != null ? item.getVariant().getId() : null)
+                        .name(item.getProductName())
+                        .sku(item.getVariant() != null ? item.getVariant().getSku() : null)
+                        .variant(item.getVariantName())
+                        .quantity(item.getQuantity())
+                        .unitPrice(item.getUnitPrice())
+                        .totalPrice(item.getTotalPrice())
+                        .image(item.getProductImage())
+                        .build())
+                .toList();
     }
 
     // ─── Create Order ──────────────────────────────────────────────────────────
@@ -731,6 +1040,7 @@ public class OrderService {
                         .build())
                 .trackingNumber(order.getTrackingNumber())
                 .shippingCarrier(order.getShippingCarrier())
+                .warehouseNote(order.getWarehouseNote())
                 .build();
     }
 
@@ -748,6 +1058,7 @@ public class OrderService {
                 .paymentMethod(safeEnumName(order.getPaymentMethod()))
                 .paymentStatus(safeEnumName(order.getPaymentStatus()))
                 .note(order.getNote())
+                .warehouseNote(order.getWarehouseNote())
                 .trackingNumber(order.getTrackingNumber())
                 .shippingCarrier(order.getShippingCarrier())
                 .commissionFee(order.getCommissionFee())

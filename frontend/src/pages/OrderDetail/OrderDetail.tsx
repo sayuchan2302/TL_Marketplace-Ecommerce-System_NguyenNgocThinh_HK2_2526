@@ -11,6 +11,7 @@ import { CLIENT_TEXT } from '../../utils/texts';
 import type { Order } from '../../types';
 import './OrderDetail.css';
 import '../../styles/orderDetailTheme.css';
+import { getOptimizedImageUrl } from '../../utils/getOptimizedImageUrl';
 
 const t = CLIENT_TEXT.common;
 
@@ -189,7 +190,7 @@ const OrderDetail = () => {
               <div className="od-items">
                 {order.items.map((item, idx) => (
                   <div key={idx} className="od-item">
-                    <img src={item.image} alt={item.name} className="od-item-img" />
+                    <img src={getOptimizedImageUrl(item.image, { width: 100, format: 'webp' })} alt={item.name} className="od-item-img" />
                     <div className="od-item-info">
                       <p className="od-item-name">{item.name}</p>
                       {item.color && <p className="od-item-variant">Màu: {item.color}</p>}

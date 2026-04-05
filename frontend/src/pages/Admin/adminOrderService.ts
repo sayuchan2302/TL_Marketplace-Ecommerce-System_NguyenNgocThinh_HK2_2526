@@ -65,10 +65,68 @@ interface BackendAdminOrder {
   }>;
 }
 
+interface BackendSubOrderSummary {
+  id: string;
+  code?: string;
+  vendorId?: string;
+  vendorName?: string;
+  status?: string;
+  total?: number;
+  trackingNumber?: string;
+  warehouseNote?: string;
+  itemCount?: number;
+  createdAt?: string;
+  customer?: {
+    name?: string;
+  };
+}
+
+interface BackendParentOrderSummary {
+  id: string;
+  code?: string;
+  status?: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  totalAmount?: number;
+  createdAt?: string;
+  customer?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  };
+  subOrders?: BackendSubOrderSummary[];
+}
+
 export interface AdminOrderRecord extends AdminOrderData {
   version: number;
   updatedAt: string;
   auditLog: AuditEntry[];
+}
+
+export interface AdminSubOrderSummary {
+  id: string;
+  code: string;
+  vendorName: string;
+  fulfillment: FulfillmentStatus;
+  total: number;
+  itemCount: number;
+  trackingNumber: string;
+  warehouseNote: string;
+  createdAt: string;
+  customerName: string;
+}
+
+export interface AdminParentOrderSummary {
+  id: string;
+  code: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  total: number;
+  paymentStatus: PaymentStatus;
+  fulfillment: FulfillmentStatus;
+  createdAt: string;
+  subOrders: AdminSubOrderSummary[];
 }
 
 interface TransitionInput {
@@ -114,8 +172,8 @@ const mapPaymentStatus = (status?: string, paymentMethod?: string): PaymentStatu
   return 'unpaid';
 };
 
-const mapBackendToAdmin = (order: BackendAdminOrder): AdminOrderRecord => {
-  const fulfillmentMap: Record<string, FulfillmentStatus> = {
+const mapFulfillmentStatus = (status?: string): FulfillmentStatus => {
+  const map: Record<string, FulfillmentStatus> = {
     PENDING: 'pending',
     CONFIRMED: 'packing',
     PROCESSING: 'packing',
@@ -123,6 +181,10 @@ const mapBackendToAdmin = (order: BackendAdminOrder): AdminOrderRecord => {
     DELIVERED: 'done',
     CANCELLED: 'canceled',
   };
+  return map[status || ''] || 'pending';
+};
+
+const mapBackendToAdmin = (order: BackendAdminOrder): AdminOrderRecord => {
 
   const customerName = order.shippingAddress?.fullName || order.customer?.name || 'Khách hàng ẩn danh';
 
@@ -149,7 +211,7 @@ const mapBackendToAdmin = (order: BackendAdminOrder): AdminOrderRecord => {
     commissionFee: Number(order.commissionFee || 0),
     vendorPayout: Number(order.vendorPayout || 0),
     paymentStatus: mapPaymentStatus(order.paymentStatus, order.paymentMethod),
-    fulfillment: fulfillmentMap[order.status || ''] || 'pending',
+    fulfillment: mapFulfillmentStatus(order.status),
     shipMethod: order.carrier || 'Chưa rõ',
     tracking: order.trackingNumber || '',
     date: order.createdAt || new Date().toISOString(),
@@ -195,6 +257,33 @@ const mapBackendToAdmin = (order: BackendAdminOrder): AdminOrderRecord => {
 export const listAdminOrders = async (): Promise<AdminOrderRecord[]> => {
   const data = await apiRequest<BackendAdminOrder[]>('/api/orders/admin/all', {}, { auth: true });
   return (data || []).map(mapBackendToAdmin);
+};
+
+export const listAdminParentOrders = async (): Promise<AdminParentOrderSummary[]> => {
+  const data = await apiRequest<BackendParentOrderSummary[]>('/api/admin/orders', {}, { auth: true });
+  return (data || []).map((parent) => ({
+    id: parent.id,
+    code: parent.code || parent.id,
+    customerName: parent.customer?.name || 'KhÃ¡ch hÃ ng',
+    customerEmail: parent.customer?.email || '',
+    customerPhone: parent.customer?.phone || '',
+    total: Number(parent.totalAmount || 0),
+    paymentStatus: mapPaymentStatus(parent.paymentStatus, parent.paymentMethod),
+    fulfillment: mapFulfillmentStatus(parent.status),
+    createdAt: parent.createdAt || new Date().toISOString(),
+    subOrders: (parent.subOrders || []).map((sub) => ({
+      id: sub.id,
+      code: sub.code || sub.id,
+      vendorName: sub.vendorName || 'Unknown Store',
+      fulfillment: mapFulfillmentStatus(sub.status),
+      total: Number(sub.total || 0),
+      itemCount: Number(sub.itemCount || 0),
+      trackingNumber: sub.trackingNumber || '',
+      warehouseNote: sub.warehouseNote || '',
+      createdAt: sub.createdAt || parent.createdAt || new Date().toISOString(),
+      customerName: sub.customer?.name || parent.customer?.name || 'KhÃ¡ch hÃ ng',
+    })),
+  }));
 };
 
 export const getAdminOrderByIdentifier = async (identifier: string): Promise<AdminOrderRecord | null> => {

@@ -1,7 +1,7 @@
 import './Vendor.css';
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, ShieldCheck, Truck, XCircle, PackageCheck } from 'lucide-react';
+import { AlertTriangle, Eye, ShieldCheck, Truck, XCircle, PackageCheck } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import VendorLayout from './VendorLayout';
 import {
@@ -382,6 +382,30 @@ const VendorOrders = () => {
     const status = paginatedOrders.find((order) => order.id === id)?.status;
     return status === 'pending' || status === 'confirmed' || status === 'processing';
   });
+  const actionableDelayIds = Array.from(selected).filter((id) => {
+    const status = paginatedOrders.find((order) => order.id === id)?.status;
+    return status === 'pending' || status === 'confirmed' || status === 'processing' || status === 'shipped';
+  });
+
+  const handleNotifyDelay = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const note = window.prompt('Nháº­p lÃ½ do cháº­m xá»­ lÃ½ / giao hÃ ng');
+    if (!note || !note.trim()) {
+      addToast('Cáº§n nháº­p lÃ½ do Ä‘á»ƒ gá»­i cáº£nh bÃ¡o delay.', 'error');
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      await Promise.all(ids.map((id) => vendorPortalService.notifyDelay(id, note.trim())));
+      addToast('ÄÃ£ gá»­i ghi chÃº delay cho Ä‘Æ¡n hÃ ng Ä‘Ã£ chá»n.', 'success');
+      await loadOrders();
+    } catch (err: unknown) {
+      addToast(getUiErrorMessage(err, 'KhÃ´ng thá»ƒ gá»­i ghi chÃº delay'), 'error');
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const statItems = [
     {
@@ -476,6 +500,13 @@ const VendorOrders = () => {
                 >
                   <XCircle size={16} /> Hủy đơn
                 </button>
+                <button
+                  className="admin-ghost-btn"
+                  disabled={actionableDelayIds.length === 0 || updating}
+                  onClick={() => void handleNotifyDelay(actionableDelayIds)}
+                >
+                  <AlertTriangle size={16} /> Notify Delay
+                </button>
               </div>
             )}
           </div>
@@ -535,6 +566,7 @@ const VendorOrders = () => {
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.12 }}
+                      style={{ willChange: 'transform' }}
                     >
                       <div>
                         <input
@@ -612,6 +644,18 @@ const VendorOrders = () => {
                             disabled={updating}
                           >
                             <XCircle size={16} />
+                          </button>
+                        ) : (
+                          <span className="vendor-order-action-slot" aria-hidden="true" />
+                        )}
+                        {(order.status === 'pending' || order.status === 'confirmed' || order.status === 'processing' || order.status === 'shipped') ? (
+                          <button
+                            className="admin-icon-btn subtle"
+                            title="Notify delay"
+                            onClick={() => void handleNotifyDelay([order.id])}
+                            disabled={updating}
+                          >
+                            <AlertTriangle size={16} />
                           </button>
                         ) : (
                           <span className="vendor-order-action-slot" aria-hidden="true" />

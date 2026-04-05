@@ -6,6 +6,7 @@ import { useCart } from '../../contexts/CartContext';
 import { useToast } from '../../contexts/ToastContext';
 import { formatPrice } from '../../utils/formatters';
 import { toDisplayOrderCode } from '../../utils/displayCode';
+import { getOptimizedImageUrl } from '../../utils/getOptimizedImageUrl';
 
 const OrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -137,7 +138,7 @@ const OrderDetailPage = () => {
               {order.items.map((item) => (
                 <tr key={item.id + item.color + item.size}>
                   <td style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <img src={item.image} alt={item.name} />
+                    <img src={getOptimizedImageUrl(item.image, { width: 100, format: 'webp' })} alt={item.name} />
                     <div>
                       <div>{item.name}</div>
                     </div>

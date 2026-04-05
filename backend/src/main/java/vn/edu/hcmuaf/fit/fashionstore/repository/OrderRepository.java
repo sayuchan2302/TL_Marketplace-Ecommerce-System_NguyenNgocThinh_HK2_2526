@@ -41,6 +41,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     List<Order> findByUserIdAndParentOrderIsNullOrderByCreatedAtDesc(UUID userId);
 
+    List<Order> findByParentOrderIsNullOrderByCreatedAtDesc();
+
     Page<Order> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
     @Query("SELECT o FROM Order o LEFT JOIN FETCH o.items WHERE o.id = :id")
@@ -116,6 +118,22 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findByParentOrderOrderByCreatedAtDesc(Order parentOrder);
 
     List<Order> findByParentOrderIdOrderByCreatedAtDesc(UUID parentOrderId);
+
+    @Query("""
+            SELECT DISTINCT o FROM Order o
+            LEFT JOIN FETCH o.items
+            WHERE o.parentOrder.id IN :parentOrderIds
+            ORDER BY o.createdAt DESC
+            """)
+    List<Order> findByParentOrderIdInWithItemsOrderByCreatedAtDesc(@Param("parentOrderIds") List<UUID> parentOrderIds);
+
+    @Query("""
+            SELECT DISTINCT o FROM Order o
+            LEFT JOIN FETCH o.items
+            WHERE o.parentOrder.id = :parentOrderId
+            ORDER BY o.createdAt DESC
+            """)
+    List<Order> findByParentOrderIdWithItemsOrderByCreatedAtDesc(@Param("parentOrderId") UUID parentOrderId);
 
     /**
      * Count orders by store (for vendor dashboard)

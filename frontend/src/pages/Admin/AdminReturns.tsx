@@ -103,7 +103,7 @@ const EMPTY_ADMIN_COUNTS: AdminTabCounts = {
 
 const AdminReturns = () => {
   const { pushToast } = useAdminToast();
-  const [activeTab, setActiveTab] = useState<TabKey>('disputed');
+  const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [rows, setRows] = useState<ReturnRequest[]>([]);
   const [tabCounts, setTabCounts] = useState<AdminTabCounts>(EMPTY_ADMIN_COUNTS);
@@ -214,7 +214,7 @@ const AdminReturns = () => {
   };
 
   const resetCurrentView = () => {
-    setActiveTab('disputed');
+    setActiveTab('all');
     setSearchQuery('');
     setPage(1);
   };
@@ -326,7 +326,6 @@ const AdminReturns = () => {
                   <div role="columnheader">Giá trị</div>
                   <div role="columnheader">Trạng thái</div>
                   <div role="columnheader">Tạo lúc</div>
-                  <div role="columnheader">Phán quyết</div>
                   <div role="columnheader">Hành động</div>
                 </div>
 
@@ -365,15 +364,6 @@ const AdminReturns = () => {
                     </div>
                     <div role="cell" className="admin-muted order-date">
                       {formatDateTime(item.createdAt)}
-                    </div>
-                    <div role="cell" className="returns-verdict-cell">
-                      {item.status === 'COMPLETED' ? (
-                        <span className="admin-pill success">Hoàn tiền khách</span>
-                      ) : item.status === 'REJECTED' ? (
-                        <span className="admin-pill neutral">Giữ tiền vendor</span>
-                      ) : (
-                        <span className="admin-muted">Chưa phán quyết</span>
-                      )}
                     </div>
                     <div role="cell" className="admin-actions returns-actions" onClick={(event) => event.stopPropagation()}>
                       <button className="admin-icon-btn subtle" title="Xem chi tiết" onClick={() => setDrawerItem(item)}>

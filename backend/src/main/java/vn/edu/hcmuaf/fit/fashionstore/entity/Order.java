@@ -69,6 +69,9 @@ public class Order extends BaseEntity {
     @Column(name = "shipping_carrier")
     private String shippingCarrier;
 
+    @Column(name = "warehouse_note", columnDefinition = "text")
+    private String warehouseNote;
+
     @Column(name = "store_id")
     private UUID storeId;
 

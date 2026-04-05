@@ -82,6 +82,7 @@ public class SecurityConfig {
 
                         // Vendor/admin private workspace endpoints
                         .requestMatchers("/api/orders/my-store", "/api/orders/my-store/**").hasAnyRole("VENDOR", "SUPER_ADMIN")
+                        .requestMatchers("/api/vendor/orders", "/api/vendor/orders/**").hasAnyRole("VENDOR", "SUPER_ADMIN")
                         .requestMatchers("/api/products/my-store", "/api/products/my-store/**").hasAnyRole("VENDOR", "SUPER_ADMIN")
                         .requestMatchers("/api/vouchers/my-store", "/api/vouchers/my-store/**").hasAnyRole("VENDOR", "SUPER_ADMIN")
                         

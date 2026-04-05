@@ -70,6 +70,51 @@ interface BackendOrderResponse {
   shippingAddress?: BackendAddressSummary;
 }
 
+interface BackendOrderTreeItem {
+  id?: string;
+  name?: string;
+  sku?: string;
+  variant?: string;
+  quantity?: number;
+  unitPrice?: number;
+  totalPrice?: number;
+  image?: string;
+}
+
+interface BackendOrderTreeSubOrder {
+  id?: string;
+  code?: string;
+  vendorId?: string;
+  vendorName?: string;
+  status?: string;
+  totalAmount?: number;
+  trackingNumber?: string;
+  warehouseNote?: string;
+  createdAt?: string;
+  items?: BackendOrderTreeItem[];
+}
+
+interface BackendOrderTreeResponse {
+  id: string;
+  code?: string;
+  createdAt?: string;
+  status?: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  subtotal?: number;
+  shippingFee?: number;
+  discount?: number;
+  totalAmount?: number;
+  customer?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  };
+  shippingAddress?: BackendAddressSummary;
+  items?: BackendOrderTreeItem[];
+  subOrders?: BackendOrderTreeSubOrder[];
+}
+
 
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -148,8 +193,77 @@ const mapBackendOrderToShared = (order: BackendOrderResponse): SharedOrder => {
   };
 };
 
-const syncBackendOrderToSharedStore = (order: BackendOrderResponse) => {
-  const shared = mapBackendOrderToShared(order);
+const mapBackendOrderTreeToShared = (order: BackendOrderTreeResponse): SharedOrder => {
+  const customerName = order.shippingAddress?.fullName || order.customer?.name || 'KhÃ¡ch hÃ ng';
+  const subOrders = order.subOrders || [];
+  const rootItems = order.items || [];
+
+  const normalizedItems = subOrders.length > 0
+    ? subOrders.flatMap((subOrder) =>
+      (subOrder.items || []).map((item, itemIndex) => ({
+        id: item.id || `${subOrder.id || order.id}-${itemIndex + 1}`,
+        name: item.name || `Item ${itemIndex + 1}`,
+        price: Number(item.unitPrice || item.totalPrice || 0),
+        image: item.image || '',
+        quantity: item.quantity || 0,
+        size: item.variant || '',
+        storeId: subOrder.vendorId,
+        storeName: subOrder.vendorName,
+      })),
+    )
+    : rootItems.map((item, itemIndex) => ({
+      id: item.id || `${order.id}-${itemIndex + 1}`,
+      name: item.name || `Item ${itemIndex + 1}`,
+      price: Number(item.unitPrice || item.totalPrice || 0),
+      image: item.image || '',
+      quantity: item.quantity || 0,
+      size: item.variant || '',
+      storeId: undefined,
+      storeName: undefined,
+    }));
+
+  const firstTracking = subOrders.find((subOrder) => Boolean(subOrder.trackingNumber))?.trackingNumber || '';
+  const delayNotes = subOrders
+    .map((subOrder) => subOrder.warehouseNote || '')
+    .filter((value) => Boolean(value && value.trim()));
+
+  return {
+    id: order.id,
+    code: order.code || order.id,
+    createdAt: order.createdAt || new Date().toISOString(),
+    customerName,
+    customerEmail: order.customer?.email || '',
+    customerPhone: order.shippingAddress?.phone || order.customer?.phone || '',
+    customerAvatar: 'KH',
+    address: formatBackendAddress(order.shippingAddress),
+    shipMethod: 'Marketplace delivery',
+    tracking: firstTracking,
+    note: delayNotes.length > 0 ? delayNotes.join(' | ') : '',
+    paymentMethod: order.paymentMethod || 'COD',
+    paymentStatus: backendPaymentStatusToClient(order.paymentStatus, order.paymentMethod),
+    fulfillment: clientStatusToFulfillment(backendStatusToClientStatus(order.status)),
+    items: normalizedItems,
+    subtotal: Number(order.subtotal || 0),
+    shippingFee: Number(order.shippingFee || 0),
+    discount: Number(order.discount || 0),
+    total: Number(order.totalAmount || 0),
+    timeline: [
+      {
+        time: new Date(order.createdAt || Date.now()).toLocaleString('vi-VN'),
+        text: 'ÄÆ¡n hÃ ng Ä‘Ã£ Ä‘Æ°á»£c táº¡o.',
+        tone: 'success',
+      },
+      ...subOrders.map((subOrder) => ({
+        time: new Date(subOrder.createdAt || order.createdAt || Date.now()).toLocaleString('vi-VN'),
+        text: `${subOrder.vendorName || 'Vendor'} - ${subOrder.status || 'PENDING'}`,
+        tone: 'neutral' as const,
+      })),
+    ],
+  };
+};
+
+const syncBackendOrderToSharedStore = (order: SharedOrder) => {
+  const shared = order;
   sharedOrderStore.upsert(shared);
 };
 
@@ -203,7 +317,7 @@ export const orderService = {
       method: 'POST',
       body: JSON.stringify(input),
     }, { auth: true });
-    syncBackendOrderToSharedStore(order);
+    syncBackendOrderToSharedStore(mapBackendOrderToShared(order));
     return order;
   },
 
@@ -225,11 +339,12 @@ export const orderService = {
       }
 
       const path = UUID_PATTERN.test(normalizedId)
-        ? `/api/orders/${normalizedId}`
-        : `/api/orders/code/${encodeURIComponent(normalizedId)}`;
-      const order = await apiRequest<BackendOrderResponse>(path, {}, { auth: true });
-      syncBackendOrderToSharedStore(order);
-      return toClientOrder(mapBackendOrderToShared(order));
+        ? `/api/orders/${normalizedId}/tree`
+        : `/api/orders/code/${encodeURIComponent(normalizedId)}/tree`;
+      const order = await apiRequest<BackendOrderTreeResponse>(path, {}, { auth: true });
+      const mapped = mapBackendOrderTreeToShared(order);
+      syncBackendOrderToSharedStore(mapped);
+      return toClientOrder(mapped);
     } catch (error: unknown) {
       if (error instanceof ApiError && error.status === 404) {
         return null;
@@ -247,7 +362,8 @@ export const orderService = {
       method: 'PATCH',
       body: JSON.stringify({ reason }),
     }, { auth: true });
-    syncBackendOrderToSharedStore(updated);
-    return toClientOrder(mapBackendOrderToShared(updated));
+    const mapped = mapBackendOrderToShared(updated);
+    syncBackendOrderToSharedStore(mapped);
+    return toClientOrder(mapped);
   },
 };

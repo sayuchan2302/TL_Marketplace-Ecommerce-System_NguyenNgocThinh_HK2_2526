@@ -1,7 +1,7 @@
 import './Vendor.css';
 import '../../styles/orderDetailTheme.css';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Copy, Link2, MapPin, Package, Percent, Printer, Store, Truck, User, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, Copy, Link2, MapPin, Package, Percent, Printer, Store, Truck, User, XCircle } from 'lucide-react';
 import { startTransition, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import VendorLayout from './VendorLayout';
@@ -13,6 +13,7 @@ import { getUiErrorMessage } from '../../utils/errorMessage';
 import { AdminStateBlock } from '../Admin/AdminStateBlocks';
 import { copyTextToClipboard } from './vendorHelpers';
 import { toDisplayOrderCode } from '../../utils/displayCode';
+import { getOptimizedImageUrl } from '../../utils/getOptimizedImageUrl';
 
 const emptyOrder: VendorOrderDetailData = {
   id: '',
@@ -29,6 +30,7 @@ const emptyOrder: VendorOrderDetailData = {
   paymentMethod: 'COD',
   paymentStatus: 'pending',
   note: '',
+  warehouseNote: '',
   trackingNumber: '',
   carrier: '',
   commissionFee: 0,
@@ -132,6 +134,28 @@ const VendorOrderDetail = () => {
     );
   };
 
+  const handleNotifyDelay = async () => {
+    const delayReason = window.prompt('Nháº­p lÃ½ do cháº­m xá»­ lÃ½ / giao hÃ ng');
+    if (!delayReason || !delayReason.trim()) {
+      addToast('Cáº§n nháº­p lÃ½ do delay.', 'error');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      await vendorPortalService.notifyDelay(order.id || id, delayReason.trim());
+      setOrder((current) => ({
+        ...current,
+        warehouseNote: delayReason.trim(),
+      }));
+      addToast('ÄÃ£ gá»­i notify delay cho Ä‘Æ¡n hÃ ng.', 'success');
+    } catch (err: unknown) {
+      addToast(getUiErrorMessage(err, 'KhÃ´ng thá»ƒ gá»­i notify delay'), 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const shippingAddress = [order.shippingAddress.address, order.shippingAddress.ward, order.shippingAddress.district, order.shippingAddress.city].filter(Boolean).join(', ');
   const statusLabel = getVendorOrderStatusLabel(order.status);
   const statusTone = getVendorOrderStatusTone(order.status);
@@ -141,6 +165,10 @@ const VendorOrderDetail = () => {
   const canShip = order.status === 'processing';
   const canDeliver = order.status === 'shipped';
   const canCancel = order.status === 'pending' || order.status === 'confirmed' || order.status === 'processing';
+  const canNotifyDelay = order.status === 'pending'
+    || order.status === 'confirmed'
+    || order.status === 'processing'
+    || order.status === 'shipped';
 
   return (
     <VendorLayout
@@ -194,6 +222,12 @@ const VendorOrderDetail = () => {
               Hủy đơn
             </button>
           )}
+          {canNotifyDelay && (
+            <button className="admin-ghost-btn" onClick={() => void handleNotifyDelay()} disabled={isProcessing}>
+              <AlertTriangle size={16} />
+              Notify Delay
+            </button>
+          )}
         </div>
       )}
     >
@@ -221,7 +255,7 @@ const VendorOrderDetail = () => {
               <div className="od-items">
                 {order.items.map((item) => (
                   <div key={item.id} className="od-item">
-                    <img src={item.image} alt={item.name} />
+                    <img src={getOptimizedImageUrl(item.image, { width: 100, format: 'webp' })} alt={item.name} />
                     <div className="od-item-info">
                       <p className="od-item-name">{item.name}</p>
                       <p className="od-item-variant">SKU: <strong>{item.sku}</strong> · {item.variant}</p>
@@ -359,6 +393,9 @@ const VendorOrderDetail = () => {
                 </div>
                 {order.note && (
                   <div className="od-note">Ghi chú: {order.note}</div>
+                )}
+                {order.warehouseNote && (
+                  <div className="od-note">Delay note: {order.warehouseNote}</div>
                 )}
               </div>
             </section>

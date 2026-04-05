@@ -1,5 +1,6 @@
 import { apiRequest } from './apiClient';
 import { storeService, type StoreProfile } from './storeService';
+import { getOptimizedImageUrl } from '../utils/getOptimizedImageUrl';
 
 interface BackendPage<T> {
   content?: T[];
@@ -37,6 +38,8 @@ interface BackendVendorCustomer {
 interface BackendVendorOrderSummary {
   id: string;
   code?: string;
+  vendorId?: string;
+  vendorName?: string;
   status?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -47,6 +50,7 @@ interface BackendVendorOrderSummary {
   customer?: BackendVendorCustomer;
   trackingNumber?: string;
   shippingCarrier?: string;
+  warehouseNote?: string;
 }
 
 interface BackendVendorOrderDetail extends BackendVendorOrderSummary {
@@ -189,6 +193,7 @@ export interface VendorOrderDetailData {
   paymentMethod: string;
   paymentStatus: string;
   note: string;
+  warehouseNote: string;
   trackingNumber: string;
   carrier: string;
   commissionFee: number;
@@ -336,7 +341,7 @@ const mapOrderDetail = (order: BackendVendorOrderDetail): VendorOrderDetailData 
     variant: item.variant || 'Mặc định',
     price: Number(item.unitPrice || item.totalPrice || 0),
     quantity: Number(item.quantity || 0),
-    image: item.image || FALLBACK_IMAGE,
+    image: getOptimizedImageUrl(item.image || FALLBACK_IMAGE, { width: 100, format: 'webp' }),
   })),
   subtotal: Number(order.subtotal || 0),
   shippingFee: Number(order.shippingFee || 0),
@@ -345,6 +350,7 @@ const mapOrderDetail = (order: BackendVendorOrderDetail): VendorOrderDetailData 
   paymentMethod: order.paymentMethod || 'COD',
   paymentStatus: (order.paymentStatus || 'UNPAID').toLowerCase(),
   note: order.note || '',
+  warehouseNote: order.warehouseNote || '',
   trackingNumber: order.trackingNumber || '',
   carrier: order.shippingCarrier || '',
   commissionFee: Number(order.commissionFee ?? 0),
@@ -514,9 +520,9 @@ export const vendorPortalService = {
     const [stats, store, orders, products, todayOrdersPage, topProducts] = await Promise.all([
       apiRequest<VendorStatsResponse>('/api/orders/my-store/stats', {}, { auth: true }),
       storeService.getMyStore(),
-      apiRequest<BackendVendorOrderPage>('/api/orders/my-store?page=0&size=5', {}, { auth: true }),
+      apiRequest<BackendVendorOrderPage>('/api/vendor/orders?page=0&size=5', {}, { auth: true }),
       apiRequest<BackendPage<BackendProduct>>('/api/products/my-store?page=0&size=1', {}, { auth: true }),
-      apiRequest<BackendVendorOrderPage>(`/api/orders/my-store?page=0&size=1&date_from=${today}&date_to=${today}`, {}, { auth: true }),
+      apiRequest<BackendVendorOrderPage>(`/api/vendor/orders?page=0&size=1&date_from=${today}&date_to=${today}`, {}, { auth: true }),
       apiRequest<BackendTopProduct[]>(
         '/api/orders/my-store/top-products?days=30&limit=3',
         {},
@@ -562,7 +568,7 @@ export const vendorPortalService = {
     if (params.dateTo) searchParams.set('date_to', params.dateTo);
 
     const response = await apiRequest<BackendVendorOrderPage>(
-      `/api/orders/my-store?${searchParams.toString()}`,
+      `/api/vendor/orders?${searchParams.toString()}`,
       {},
       { auth: true },
     );
@@ -589,8 +595,8 @@ export const vendorPortalService = {
 
   async getOrderDetail(id: string): Promise<VendorOrderDetailData> {
     const path = UUID_PATTERN.test(id)
-      ? `/api/orders/my-store/${id}`
-      : `/api/orders/my-store/code/${encodeURIComponent(id)}`;
+      ? `/api/vendor/orders/${id}`
+      : `/api/vendor/orders/code/${encodeURIComponent(id)}`;
     const order = await apiRequest<BackendVendorOrderDetail>(path, {}, { auth: true });
     return mapOrderDetail(order);
   },
@@ -600,9 +606,16 @@ export const vendorPortalService = {
     status: 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED',
     payload?: { trackingNumber?: string; carrier?: string; reason?: string },
   ) {
-    await apiRequest(`/api/orders/my-store/${id}/status`, {
+    await apiRequest(`/api/vendor/orders/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status, ...payload }),
+    }, { auth: true });
+  },
+
+  async notifyDelay(id: string, warehouseNote: string) {
+    await apiRequest(`/api/vendor/orders/${id}/delay`, {
+      method: 'PATCH',
+      body: JSON.stringify({ warehouseNote }),
     }, { auth: true });
   },
 

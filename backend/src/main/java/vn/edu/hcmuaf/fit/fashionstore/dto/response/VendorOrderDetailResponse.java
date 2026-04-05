@@ -27,6 +27,7 @@ public class VendorOrderDetailResponse {
     private String paymentMethod;
     private String paymentStatus;
     private String note;
+    private String warehouseNote;
     private String trackingNumber;
     private String shippingCarrier;
     private BigDecimal commissionFee;

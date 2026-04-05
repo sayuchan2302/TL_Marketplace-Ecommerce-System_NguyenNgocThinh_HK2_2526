@@ -28,6 +28,7 @@ import { formatCurrency } from '../../services/commissionService';
 import { MARKETPLACE_DICTIONARY } from '../../utils/clientDictionary';
 import { getUiErrorMessage } from '../../utils/errorMessage';
 import { toDisplayOrderCode } from '../../utils/displayCode';
+import { getOptimizedImageUrl } from '../../utils/getOptimizedImageUrl';
 import '../../styles/orderDetailTheme.css';
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
@@ -233,7 +234,7 @@ const AdminOrderDetailContent = ({ orderCode, routeId }: { orderCode: string; ro
             <div className="od-items">
               {order.items.map(item => (
                 <div key={item.id} className="od-item">
-                  <img src={item.image} alt={item.name} />
+                  <img src={getOptimizedImageUrl(item.image, { width: 100, format: 'webp' })} alt={item.name} />
                   <div className="od-item-info">
                     <p className="od-item-name">{item.name}</p>
                     <p className="od-item-variant"><strong>{item.color}</strong> · <strong>Size {item.size}</strong></p>
