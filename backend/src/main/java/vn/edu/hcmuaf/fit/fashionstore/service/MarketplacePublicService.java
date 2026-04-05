@@ -42,7 +42,7 @@ public class MarketplacePublicService {
     private static final int HOME_STORE_LIMIT = 4;
     private static final int HOME_PRODUCT_LIMIT = 8;
     private static final String DEFAULT_PRODUCT_IMAGE =
-            "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=672&h=990&fit=crop";
+            "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=672&h=990&fit=crop&fm=webp&q=80&auto=format";
 
     private final ProductRepository productRepository;
     private final StoreRepository storeRepository;

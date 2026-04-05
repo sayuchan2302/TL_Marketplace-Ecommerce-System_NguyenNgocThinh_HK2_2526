@@ -97,6 +97,7 @@ const ProductDetail = () => {
   const [reviewContent, setReviewContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [canReview, setCanReview] = useState(false);
   const storeSlug = normalizeStoreSlug(product?.storeSlug);
 
   useEffect(() => {
@@ -118,13 +119,19 @@ const ProductDetail = () => {
         const backendProductId = fetched?.backendId || '';
         if (backendProductId) {
           try {
-            const productReviews = await reviewService.getReviewsByProduct(backendProductId);
+            const [productReviews, eligibleReviewItems] = await Promise.all([
+              reviewService.getReviewsByProduct(backendProductId),
+              reviewService.getEligibleReviews(),
+            ]);
             setReviews(productReviews);
+            setCanReview(eligibleReviewItems.some((item) => item.productId === backendProductId));
           } catch {
             setReviews([]);
+            setCanReview(false);
           }
         } else {
           setReviews([]);
+          setCanReview(false);
         }
         setIsLoading(false);
       })();

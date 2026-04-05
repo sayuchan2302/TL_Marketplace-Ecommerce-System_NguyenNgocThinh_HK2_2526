@@ -52,6 +52,9 @@ public class MarketplaceSeeder implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(MarketplaceSeeder.class);
     private static final String TEST_PASSWORD = "Test@123";
     private static final String SEED_ACTOR = "seed-system";
+    private static final String STORE_LOGO_IMAGE = unsplashImage("photo-1441986300917-64674bd600d8", 512, 512);
+    private static final String STORE_BANNER_IMAGE = unsplashImage("photo-1523381210434-271e8be1f52b", 1600, 600);
+    private static final String CATEGORY_IMAGE = unsplashImage("photo-1441986300917-64674bd600d8", 800, 800);
 
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
@@ -68,6 +71,16 @@ public class MarketplaceSeeder implements ApplicationRunner {
     private final JdbcTemplate jdbcTemplate;
     private final PasswordEncoder passwordEncoder;
     private final PublicCodeService publicCodeService;
+
+    private static String unsplashImage(String photoId, int width, int height) {
+        return "https://images.unsplash.com/"
+                + photoId
+                + "?w="
+                + width
+                + "&h="
+                + height
+                + "&fit=crop&fm=webp&q=80&auto=format";
+    }
 
     public MarketplaceSeeder(
             UserRepository userRepository,
@@ -245,37 +258,37 @@ public class MarketplaceSeeder implements ApplicationRunner {
                 storeAn, menAoThun, "Áo thun cotton premium", "ao-thun-cotton-premium",
                 new BigDecimal("249000"), new BigDecimal("199000"), Product.Gender.UNISEX, Product.ProductStatus.ACTIVE,
                 true, "Cotton compact 240gsm", "Regular fit", "Áo thun mềm mịn, thấm hút tốt, phù hợp mặc hằng ngày.",
-                "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab", "Áo thun cotton premium"
+                unsplashImage("photo-1521572163474-6864f9cf17ab", 672, 990), "Áo thun cotton premium"
         );
         Product quanJeanSlim = createProduct(
                 storeAn, menQuanJeans, "Quần jean slim wash", "quan-jean-slim-wash",
                 new BigDecimal("459000"), new BigDecimal("379000"), Product.Gender.MALE, Product.ProductStatus.ACTIVE,
                 false, "Denim co giãn", "Slim fit", "Quần jean ôm vừa, màu wash hiện đại.",
-                "https://images.unsplash.com/photo-1542272604-787c3835535d", "Quần jean slim wash"
+                unsplashImage("photo-1542272604-787c3835535d", 672, 990), "Quần jean slim wash"
         );
         Product damMidi = createProduct(
                 storeBinh, womenVayLien, "Đầm midi hoa nhí", "dam-midi-hoa-nhi",
                 new BigDecimal("529000"), new BigDecimal("449000"), Product.Gender.FEMALE, Product.ProductStatus.ACTIVE,
                 true, "Voan lụa", "Dáng xòe", "Đầm nhẹ, thoáng, phù hợp đi làm và dạo phố.",
-                "https://images.unsplash.com/photo-1496747611176-843222e1e57c", "Đầm midi hoa nhí"
+                unsplashImage("photo-1496747611176-843222e1e57c", 672, 990), "Đầm midi hoa nhí"
         );
         Product blazerNu = createProduct(
                 storeBinh, womenAoKhoac, "Áo blazer nữ basic", "ao-blazer-nu-basic",
                 new BigDecimal("699000"), new BigDecimal("599000"), Product.Gender.FEMALE, Product.ProductStatus.ACTIVE,
                 false, "Tweed pha", "Regular fit", "Blazer tối giản, phù hợp môi trường công sở.",
-                "https://images.unsplash.com/photo-1483985988355-763728e1935b", "Áo blazer nữ basic"
+                unsplashImage("photo-1483985988355-763728e1935b", 672, 990), "Áo blazer nữ basic"
         );
         Product tuiDaMem = createProduct(
                 storeBinh, accessoryTuiDeoCheo, "Túi đeo chéo da mềm", "tui-deo-cheo-da-mem",
                 new BigDecimal("489000"), new BigDecimal("409000"), Product.Gender.UNISEX, Product.ProductStatus.ACTIVE,
                 true, "Da PU cao cấp", "Đeo chéo", "Túi nhỏ gọn, có nhiều ngăn tiện lợi.",
-                "https://images.unsplash.com/photo-1542291026-7eec264c27ff", "Túi đeo chéo da mềm"
+                unsplashImage("photo-1542291026-7eec264c27ff", 672, 990), "Túi đeo chéo da mềm"
         );
         Product sanPhamNhap = createProduct(
                 storeChoDuyet, menAoThun, "Áo thun local draft", "ao-thun-local-draft",
                 new BigDecimal("199000"), BigDecimal.ZERO, Product.Gender.UNISEX, Product.ProductStatus.DRAFT,
                 false, "Cotton 2 chiều", "Regular fit", "Sản phẩm nháp chờ gian hàng được duyệt.",
-                "https://images.unsplash.com/photo-1434389677669-e08b4cac3105", "Áo thun local draft"
+                unsplashImage("photo-1434389677669-e08b4cac3105", 672, 990), "Áo thun local draft"
         );
 
         ProductVariant aoThunDenM = createVariant(aoThunPremium, "AN-TEE-PRM-BLK-M", "Đen", "M", 90, BigDecimal.ZERO, true);
@@ -294,80 +307,80 @@ public class MarketplaceSeeder implements ApplicationRunner {
                 storeAn, menAoPolo, "Ao polo air flex", "ao-polo-air-flex",
                 new BigDecimal("329000"), new BigDecimal("279000"), Product.Gender.MALE, Product.ProductStatus.ACTIVE,
                 true, "Cotton pique", "Slim fit", "Ao polo chat lieu thoang khi, phu hop di lam va di choi.",
-                "https://images.unsplash.com/photo-1617137984095-74e4e5e3613f", "Ao polo air flex"
+                unsplashImage("photo-1617137984095-74e4e5e3613f", 672, 990), "Ao polo air flex"
         );
         Product aoThunOversize = createProduct(
                 storeAn, menAoThun, "Ao thun oversize street", "ao-thun-oversize-street",
                 new BigDecimal("289000"), new BigDecimal("239000"), Product.Gender.UNISEX, Product.ProductStatus.ACTIVE,
                 false, "Cotton 2 chieu", "Oversize", "Form rong thoai mai, phoi do linh hoat.",
-                "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c", "Ao thun oversize street"
+                unsplashImage("photo-1503342217505-b0a15ec3261c", 672, 990), "Ao thun oversize street"
         );
         Product quanKakiFlex = createProduct(
                 storeAn, menQuanKaki, "Quan kaki flex tapered", "quan-kaki-flex-tapered",
                 new BigDecimal("499000"), new BigDecimal("419000"), Product.Gender.MALE, Product.ProductStatus.ACTIVE,
                 false, "Kaki co gian", "Tapered", "Quan kaki de mac, de phoi voi ao polo va so mi.",
-                "https://images.unsplash.com/photo-1473966968600-fa801b869a1a", "Quan kaki flex tapered"
+                unsplashImage("photo-1473966968600-fa801b869a1a", 672, 990), "Quan kaki flex tapered"
         );
         Product quanJeansStraight = createProduct(
                 storeAn, menQuanJeans, "Quan jeans straight dark", "quan-jeans-straight-dark",
                 new BigDecimal("539000"), new BigDecimal("459000"), Product.Gender.MALE, Product.ProductStatus.ACTIVE,
                 false, "Denim 12oz", "Straight", "Mau denim dam, hop phong cach toi gian.",
-                "https://images.unsplash.com/photo-1475180098004-ca77a66827be", "Quan jeans straight dark"
+                unsplashImage("photo-1475180098004-ca77a66827be", 672, 990), "Quan jeans straight dark"
         );
         Product aoPoloSeasonOld = createProduct(
                 storeAn, menAoPolo, "Ao polo old season", "ao-polo-old-season",
                 new BigDecimal("299000"), new BigDecimal("199000"), Product.Gender.MALE, Product.ProductStatus.INACTIVE,
                 false, "Cotton blend", "Regular", "Mau cu de test trang thai inactive tren dashboard vendor.",
-                "https://images.unsplash.com/photo-1562157873-818bc0726f68", "Ao polo old season"
+                unsplashImage("photo-1562157873-818bc0726f68", 672, 990), "Ao polo old season"
         );
 
         Product aoSoMiLuaNu = createProduct(
                 storeBinh, womenAoSoMi, "Ao so mi lua basic", "ao-so-mi-lua-basic",
                 new BigDecimal("459000"), new BigDecimal("389000"), Product.Gender.FEMALE, Product.ProductStatus.ACTIVE,
                 true, "Lua mem", "Regular", "Ao so mi thanh lich cho moi truong cong so.",
-                "https://images.unsplash.com/photo-1524504388940-b1c1722653e1", "Ao so mi lua basic"
+                unsplashImage("photo-1524504388940-b1c1722653e1", 672, 990), "Ao so mi lua basic"
         );
         Product quanJeansBaggyNu = createProduct(
                 storeBinh, womenQuanJeans, "Quan jeans baggy nu", "quan-jeans-baggy-nu",
                 new BigDecimal("499000"), new BigDecimal("429000"), Product.Gender.FEMALE, Product.ProductStatus.ACTIVE,
                 false, "Denim mem", "Baggy", "Form baggy de mac, phu hop phong cach tre trung.",
-                "https://images.unsplash.com/photo-1541099649105-f69ad21f3246", "Quan jeans baggy nu"
+                unsplashImage("photo-1541099649105-f69ad21f3246", 672, 990), "Quan jeans baggy nu"
         );
         Product damLinen = createProduct(
                 storeBinh, womenVayLien, "Dam linen canh tien", "dam-linen-canh-tien",
                 new BigDecimal("629000"), new BigDecimal("549000"), Product.Gender.FEMALE, Product.ProductStatus.ACTIVE,
                 false, "Linen", "A-line", "Dam chat lieu linen nhe, mac mat trong mua he.",
-                "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f", "Dam linen canh tien"
+                unsplashImage("photo-1515886657613-9f3515b0c78f", 672, 990), "Dam linen canh tien"
         );
         Product aoCardigan = createProduct(
                 storeBinh, womenAoKhoac, "Ao cardigan knit", "ao-cardigan-knit",
                 new BigDecimal("559000"), new BigDecimal("489000"), Product.Gender.FEMALE, Product.ProductStatus.ACTIVE,
                 false, "Knit", "Regular", "Ao khoac mong nhe, phoi cung vay va quan jeans.",
-                "https://images.unsplash.com/photo-1445205170230-053b83016050", "Ao cardigan knit"
+                unsplashImage("photo-1445205170230-053b83016050", 672, 990), "Ao cardigan knit"
         );
         Product tuiMiniCross = createProduct(
                 storeBinh, accessoryTuiDeoCheo, "Tui mini crossbody", "tui-mini-crossbody",
                 new BigDecimal("429000"), new BigDecimal("359000"), Product.Gender.UNISEX, Product.ProductStatus.ACTIVE,
                 false, "PU leather", "Crossbody", "Tui mini gon nhe, phu hop di choi va di cafe.",
-                "https://images.unsplash.com/photo-1584917865442-de89df76afd3", "Tui mini crossbody"
+                unsplashImage("photo-1584917865442-de89df76afd3", 672, 990), "Tui mini crossbody"
         );
         Product baloUrban = createProduct(
                 storeBinh, accessoryBalo, "Balo urban daily", "balo-urban-daily",
                 new BigDecimal("639000"), new BigDecimal("559000"), Product.Gender.UNISEX, Product.ProductStatus.ACTIVE,
                 false, "Canvas", "Daily", "Balo dung laptop 14 inch, nhieu ngan tien loi.",
-                "https://images.unsplash.com/photo-1491637639811-60e2756cc1c7", "Balo urban daily"
+                unsplashImage("photo-1491637639811-60e2756cc1c7", 672, 990), "Balo urban daily"
         );
         Product viSlim = createProduct(
                 storeBinh, accessoryVi, "Vi slim da mem", "vi-slim-da-mem",
                 new BigDecimal("329000"), new BigDecimal("279000"), Product.Gender.UNISEX, Product.ProductStatus.ACTIVE,
                 false, "PU leather", "Slim", "Vi mong gon, phu hop bo tui quan jean.",
-                "https://images.unsplash.com/photo-1627123424574-724758594e93", "Vi slim da mem"
+                unsplashImage("photo-1627123424574-724758594e93", 672, 990), "Vi slim da mem"
         );
         Product damDraftSample = createProduct(
                 storeBinh, womenVayLien, "Dam sample pending", "dam-sample-pending",
                 new BigDecimal("399000"), BigDecimal.ZERO, Product.Gender.FEMALE, Product.ProductStatus.DRAFT,
                 false, "Cotton blend", "Regular", "San pham nhap de test trang thai draft cua vendor.",
-                "https://images.unsplash.com/photo-1485230895905-ec40ba36b9bc", "Dam sample pending"
+                unsplashImage("photo-1485230895905-ec40ba36b9bc", 672, 990), "Dam sample pending"
         );
 
         createVariant(aoPoloAirFlex, "AN-POLO-AIR-BLK-M", "Den", "M", 45, BigDecimal.ZERO, true);
@@ -417,7 +430,7 @@ public class MarketplaceSeeder implements ApplicationRunner {
 
         createReturnRequest(orderDaGiao, customerMinh, itemDaGiao, ReturnRequest.ReturnReason.SIZE, ReturnRequest.ReturnResolution.EXCHANGE, ReturnRequest.ReturnStatus.PENDING_VENDOR, "Khách muốn đổi size M sang L.", "Đã tiếp nhận và chờ cửa hàng xác nhận tồn kho.");
 
-        createReview(aoThunPremium, customerMinh, orderDaGiao, storeAn.getId(), 5, "Áo mặc rất thoải mái", "Chất vải mát, form đẹp, giao nhanh.", Review.ReviewStatus.APPROVED, "Cảm ơn bạn đã ủng hộ shop.", List.of("https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"));
+        createReview(aoThunPremium, customerMinh, orderDaGiao, storeAn.getId(), 5, "Áo mặc rất thoải mái", "Chất vải mát, form đẹp, giao nhanh.", Review.ReviewStatus.APPROVED, "Cảm ơn bạn đã ủng hộ shop.", List.of(unsplashImage("photo-1521572163474-6864f9cf17ab", 672, 990)));
         createReview(damMidi, customerLan, orderDangGiao, storeBinh.getId(), 5, "Đầm lên dáng xinh", "Vải nhẹ, không nhăn nhiều.", Review.ReviewStatus.PENDING, null, List.of());
         createReview(blazerNu, customerHuy, null, storeBinh.getId(), 3, "Áo đẹp nhưng hơi dày", "Nên mặc phòng lạnh sẽ hợp hơn.", Review.ReviewStatus.APPROVED, "Shop ghi nhận góp ý để cải tiến chất liệu.", List.of());
 
@@ -539,8 +552,8 @@ public class MarketplaceSeeder implements ApplicationRunner {
         store.setName(name);
         store.setSlug(slug);
         store.setDescription(description);
-        store.setLogo("https://images.unsplash.com/photo-1441986300917-64674bd600d8");
-        store.setBanner("https://images.unsplash.com/photo-1523381210434-271e8be1f52b");
+        store.setLogo(STORE_LOGO_IMAGE);
+        store.setBanner(STORE_BANNER_IMAGE);
         store.setContactEmail(owner.getEmail());
         store.setPhone(owner.getPhone());
         store.setAddress(address);
@@ -578,7 +591,7 @@ public class MarketplaceSeeder implements ApplicationRunner {
         category.setDescription(description);
         category.setParent(parent);
         category.setSortOrder(sortOrder);
-        category.setImage("https://images.unsplash.com/photo-1441986300917-64674bd600d8");
+        category.setImage(CATEGORY_IMAGE);
         return categoryRepository.save(category);
     }
 
