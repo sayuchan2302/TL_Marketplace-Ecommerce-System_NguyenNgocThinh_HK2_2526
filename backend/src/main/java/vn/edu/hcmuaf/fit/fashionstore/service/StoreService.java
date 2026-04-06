@@ -3,8 +3,10 @@ package vn.edu.hcmuaf.fit.fashionstore.service;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.server.ResponseStatusException;
 import vn.edu.hcmuaf.fit.fashionstore.dto.request.StoreRequest;
+import vn.edu.hcmuaf.fit.fashionstore.dto.response.PublicStoreResponse;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.StoreResponse;
 import vn.edu.hcmuaf.fit.fashionstore.entity.Product;
 import vn.edu.hcmuaf.fit.fashionstore.entity.Store;
@@ -30,6 +32,22 @@ public class StoreService {
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
     private final ReviewRepository reviewRepository;
+    private final AdminAuditLogService adminAuditLogService;
+
+    @Autowired
+    public StoreService(
+            StoreRepository storeRepository,
+            UserRepository userRepository,
+            ProductRepository productRepository,
+            ReviewRepository reviewRepository,
+            AdminAuditLogService adminAuditLogService
+    ) {
+        this.storeRepository = storeRepository;
+        this.userRepository = userRepository;
+        this.productRepository = productRepository;
+        this.reviewRepository = reviewRepository;
+        this.adminAuditLogService = adminAuditLogService;
+    }
 
     public StoreService(
             StoreRepository storeRepository,
@@ -37,10 +55,7 @@ public class StoreService {
             ProductRepository productRepository,
             ReviewRepository reviewRepository
     ) {
-        this.storeRepository = storeRepository;
-        this.userRepository = userRepository;
-        this.productRepository = productRepository;
-        this.reviewRepository = reviewRepository;
+        this(storeRepository, userRepository, productRepository, reviewRepository, null);
     }
 
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
@@ -113,25 +128,25 @@ public class StoreService {
     }
 
     @Transactional(readOnly = true)
-    public StoreResponse getStoreById(UUID storeId) {
+    public PublicStoreResponse getStoreById(UUID storeId) {
         Store store = storeRepository.findByIdAndApprovalStatusAndStatus(
                         storeId,
                         Store.ApprovalStatus.APPROVED,
                         Store.StoreStatus.ACTIVE
                 )
                 .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
-        return toResponse(store, true);
+        return toPublicResponse(store, true);
     }
 
     @Transactional(readOnly = true)
-    public StoreResponse getStoreBySlug(String slug) {
+    public PublicStoreResponse getStoreBySlug(String slug) {
         Store store = storeRepository.findBySlugAndApprovalStatusAndStatus(
                         slug,
                         Store.ApprovalStatus.APPROVED,
                         Store.StoreStatus.ACTIVE
                 )
                 .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
-        return toResponse(store, true);
+        return toPublicResponse(store, true);
     }
 
     @Transactional(readOnly = true)
@@ -151,83 +166,173 @@ public class StoreService {
     }
 
     @Transactional(readOnly = true)
-    public List<StoreResponse> getAllActiveStores() {
+    public List<PublicStoreResponse> getAllActiveStores() {
         return storeRepository.findByApprovalStatusAndStatus(
                 Store.ApprovalStatus.APPROVED,
                 Store.StoreStatus.ACTIVE
         ).stream()
-                .map(store -> toResponse(store, false))
+                .map(store -> toPublicResponse(store, false))
                 .collect(Collectors.toList());
     }
 
     @Transactional
-    public StoreResponse approveStore(UUID storeId, String approvedBy) {
-        Store store = storeRepository.findById(storeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+    public StoreResponse approveStore(UUID storeId, UUID adminId, String adminEmail) {
+        try {
+            Store store = storeRepository.findById(storeId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
 
-        if (store.getApprovalStatus() != Store.ApprovalStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Store is not pending approval");
+            if (store.getApprovalStatus() != Store.ApprovalStatus.PENDING) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Store is not pending approval");
+            }
+
+            store.setApprovalStatus(Store.ApprovalStatus.APPROVED);
+            store.setStatus(Store.StoreStatus.ACTIVE);
+            store.setApprovedAt(LocalDateTime.now());
+            store.setApprovedBy(adminEmail);
+
+            Store saved = storeRepository.save(store);
+            User owner = store.getOwner();
+            owner.setRole(User.Role.VENDOR);
+            owner.setStoreId(saved.getId());
+            userRepository.save(owner);
+
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "STORE",
+                    "APPROVE_STORE",
+                    saved.getId(),
+                    true,
+                    null
+            );
+            return toResponse(saved);
+        } catch (RuntimeException ex) {
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "STORE",
+                    "APPROVE_STORE",
+                    storeId,
+                    false,
+                    ex.getMessage()
+            );
+            throw ex;
         }
-
-        store.setApprovalStatus(Store.ApprovalStatus.APPROVED);
-        store.setStatus(Store.StoreStatus.ACTIVE);
-        store.setApprovedAt(LocalDateTime.now());
-        store.setApprovedBy(approvedBy);
-
-        Store saved = storeRepository.save(store);
-        User owner = store.getOwner();
-        owner.setRole(User.Role.VENDOR);
-        owner.setStoreId(saved.getId());
-        userRepository.save(owner);
-        return toResponse(saved);
     }
 
     @Transactional
-    public StoreResponse rejectStore(UUID storeId, String reason) {
-        Store store = storeRepository.findById(storeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+    public StoreResponse rejectStore(UUID storeId, UUID adminId, String adminEmail, String reason) {
+        try {
+            Store store = storeRepository.findById(storeId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
 
-        if (store.getApprovalStatus() != Store.ApprovalStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Store is not pending approval");
+            if (store.getApprovalStatus() != Store.ApprovalStatus.PENDING) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Store is not pending approval");
+            }
+
+            store.setApprovalStatus(Store.ApprovalStatus.REJECTED);
+            store.setRejectionReason(reason);
+
+            Store saved = storeRepository.save(store);
+            User owner = store.getOwner();
+            owner.setRole(User.Role.CUSTOMER);
+            owner.setStoreId(null);
+            userRepository.save(owner);
+
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "STORE",
+                    "REJECT_STORE",
+                    saved.getId(),
+                    true,
+                    reason
+            );
+            return toResponse(saved);
+        } catch (RuntimeException ex) {
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "STORE",
+                    "REJECT_STORE",
+                    storeId,
+                    false,
+                    ex.getMessage()
+            );
+            throw ex;
         }
-
-        store.setApprovalStatus(Store.ApprovalStatus.REJECTED);
-        store.setRejectionReason(reason);
-
-        Store saved = storeRepository.save(store);
-        User owner = store.getOwner();
-        owner.setRole(User.Role.CUSTOMER);
-        owner.setStoreId(null);
-        userRepository.save(owner);
-        return toResponse(saved);
     }
 
     @Transactional
-    public StoreResponse suspendStore(UUID storeId) {
-        Store store = storeRepository.findById(storeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+    public StoreResponse suspendStore(UUID storeId, UUID adminId, String adminEmail) {
+        try {
+            Store store = storeRepository.findById(storeId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
 
-        if (store.getApprovalStatus() != Store.ApprovalStatus.APPROVED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only approved stores can be suspended");
+            if (store.getApprovalStatus() != Store.ApprovalStatus.APPROVED) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only approved stores can be suspended");
+            }
+
+            store.setStatus(Store.StoreStatus.SUSPENDED);
+            Store saved = storeRepository.save(store);
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "STORE",
+                    "SUSPEND_STORE",
+                    saved.getId(),
+                    true,
+                    null
+            );
+            return toResponse(saved);
+        } catch (RuntimeException ex) {
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "STORE",
+                    "SUSPEND_STORE",
+                    storeId,
+                    false,
+                    ex.getMessage()
+            );
+            throw ex;
         }
-
-        store.setStatus(Store.StoreStatus.SUSPENDED);
-        Store saved = storeRepository.save(store);
-        return toResponse(saved);
     }
 
     @Transactional
-    public StoreResponse reactivateStore(UUID storeId) {
-        Store store = storeRepository.findById(storeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+    public StoreResponse reactivateStore(UUID storeId, UUID adminId, String adminEmail) {
+        try {
+            Store store = storeRepository.findById(storeId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
 
-        if (store.getApprovalStatus() != Store.ApprovalStatus.APPROVED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only approved stores can be reactivated");
+            if (store.getApprovalStatus() != Store.ApprovalStatus.APPROVED) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only approved stores can be reactivated");
+            }
+
+            store.setStatus(Store.StoreStatus.ACTIVE);
+            Store saved = storeRepository.save(store);
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "STORE",
+                    "REACTIVATE_STORE",
+                    saved.getId(),
+                    true,
+                    null
+            );
+            return toResponse(saved);
+        } catch (RuntimeException ex) {
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "STORE",
+                    "REACTIVATE_STORE",
+                    storeId,
+                    false,
+                    ex.getMessage()
+            );
+            throw ex;
         }
-
-        store.setStatus(Store.StoreStatus.ACTIVE);
-        Store saved = storeRepository.save(store);
-        return toResponse(saved);
     }
 
     @Transactional
@@ -327,6 +432,48 @@ public class StoreService {
         return toResponse(store, false);
     }
 
+    private PublicStoreResponse toPublicResponse(Store store, boolean includeAggregates) {
+        Integer productCount = null;
+        Integer liveProductCount = null;
+        Integer responseRate = null;
+
+        if (includeAggregates) {
+            UUID storeId = store.getId();
+            long totalProducts = productRepository.countByStoreIdExcludingArchived(storeId);
+            long activeProducts = productRepository.countByStoreIdAndStatus(storeId, Product.ProductStatus.ACTIVE);
+            long totalReviews = reviewRepository.countByStoreId(storeId);
+            long repliedReviews = reviewRepository.countByStoreIdWithReply(storeId);
+
+            productCount = Math.toIntExact(totalProducts);
+            liveProductCount = Math.toIntExact(activeProducts);
+            responseRate = totalReviews == 0
+                    ? 0
+                    : (int) Math.round((repliedReviews * 100.0) / totalReviews);
+        }
+
+        return PublicStoreResponse.builder()
+                .id(store.getId())
+                .name(store.getName())
+                .slug(store.getSlug())
+                .description(store.getDescription())
+                .logo(store.getLogo())
+                .banner(store.getBanner())
+                .contactEmail(store.getContactEmail())
+                .phone(store.getPhone())
+                .address(store.getAddress())
+                .status(store.getStatus().name())
+                .approvalStatus(store.getApprovalStatus().name())
+                .totalSales(store.getTotalSales())
+                .totalOrders(store.getTotalOrders())
+                .rating(store.getRating())
+                .productCount(productCount)
+                .liveProductCount(liveProductCount)
+                .responseRate(responseRate)
+                .createdAt(store.getCreatedAt())
+                .updatedAt(store.getUpdatedAt())
+                .build();
+    }
+
     private StoreResponse toResponse(Store store, boolean includeAggregates) {
         // Ensure owner is initialized within transactional context
         User owner = store.getOwner();
@@ -395,6 +542,19 @@ public class StoreService {
 
     private static Boolean defaultIfNull(Boolean value, boolean fallback) {
         return value != null ? value : fallback;
+    }
+
+    private void writeAdminAuditLog(
+            UUID actorId,
+            String actorEmail,
+            String domain,
+            String action,
+            UUID targetId,
+            boolean success,
+            String note
+    ) {
+        if (adminAuditLogService == null) return;
+        adminAuditLogService.logAction(actorId, actorEmail, domain, action, targetId, success, note);
     }
 }
 

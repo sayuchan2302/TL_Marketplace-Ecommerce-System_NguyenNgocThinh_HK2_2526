@@ -5,6 +5,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,13 +55,16 @@ public class OrderService {
     private final VoucherRepository voucherRepository;
     private final PublicCodeService publicCodeService;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final AdminAuditLogService adminAuditLogService;
 
+    @Autowired
     public OrderService(OrderRepository orderRepository, UserRepository userRepository,
                         AddressRepository addressRepository, ProductRepository productRepository,
                         ProductVariantRepository productVariantRepository, WalletService walletService,
                         StoreRepository storeRepository, CouponRepository couponRepository,
                         VoucherRepository voucherRepository, PublicCodeService publicCodeService,
-                        ApplicationEventPublisher applicationEventPublisher) {
+                        ApplicationEventPublisher applicationEventPublisher,
+                        AdminAuditLogService adminAuditLogService) {
         this.orderRepository = orderRepository;
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
@@ -72,6 +76,29 @@ public class OrderService {
         this.voucherRepository = voucherRepository;
         this.publicCodeService = publicCodeService;
         this.applicationEventPublisher = applicationEventPublisher;
+        this.adminAuditLogService = adminAuditLogService;
+    }
+
+    public OrderService(OrderRepository orderRepository, UserRepository userRepository,
+                        AddressRepository addressRepository, ProductRepository productRepository,
+                        ProductVariantRepository productVariantRepository, WalletService walletService,
+                        StoreRepository storeRepository, CouponRepository couponRepository,
+                        VoucherRepository voucherRepository, PublicCodeService publicCodeService,
+                        ApplicationEventPublisher applicationEventPublisher) {
+        this(
+                orderRepository,
+                userRepository,
+                addressRepository,
+                productRepository,
+                productVariantRepository,
+                walletService,
+                storeRepository,
+                couponRepository,
+                voucherRepository,
+                publicCodeService,
+                applicationEventPublisher,
+                null
+        );
     }
 
     // Default commission rate (5%)
@@ -843,8 +870,41 @@ public class OrderService {
      */
     @Transactional
     public Order updateStatus(UUID orderId, Order.OrderStatus status) {
-        Order order = findById(orderId);
-        return applyStatusUpdate(order, status, null, null, null, false);
+        return updateStatus(orderId, status, null, null);
+    }
+
+    @Transactional
+    public Order updateStatus(UUID orderId, Order.OrderStatus status, UUID adminId, String adminEmail) {
+        try {
+            Order order = findById(orderId);
+            Order.OrderStatus previousStatus = order.getStatus();
+            Order saved = applyStatusUpdate(order, status, null, null, null, false);
+            if (adminId != null) {
+                writeAdminAuditLog(
+                        adminId,
+                        adminEmail,
+                        "ORDER",
+                        "ADMIN_UPDATE_STATUS",
+                        saved.getId(),
+                        true,
+                        "Status " + safeEnumName(previousStatus) + " -> " + safeEnumName(status)
+                );
+            }
+            return saved;
+        } catch (RuntimeException ex) {
+            if (adminId != null) {
+                writeAdminAuditLog(
+                        adminId,
+                        adminEmail,
+                        "ORDER",
+                        "ADMIN_UPDATE_STATUS",
+                        orderId,
+                        false,
+                        ex.getMessage()
+                );
+            }
+            throw ex;
+        }
     }
 
     /**
@@ -1748,6 +1808,19 @@ public class OrderService {
 
     private String safeEnumName(Enum<?> value) {
         return value == null ? null : value.name();
+    }
+
+    private void writeAdminAuditLog(
+            UUID actorId,
+            String actorEmail,
+            String domain,
+            String action,
+            UUID targetId,
+            boolean success,
+            String note
+    ) {
+        if (adminAuditLogService == null) return;
+        adminAuditLogService.logAction(actorId, actorEmail, domain, action, targetId, success, note);
     }
 
     public UUID resolveOrderId(String idOrCode) {

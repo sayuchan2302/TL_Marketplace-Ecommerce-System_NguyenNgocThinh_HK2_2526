@@ -18,6 +18,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     List<WalletTransaction> findByWalletIdOrderByCreatedAtDesc(UUID walletId);
     Page<WalletTransaction> findByWalletId(UUID walletId, Pageable pageable);
     boolean existsByOrderIdAndType(UUID orderId, WalletTransaction.TransactionType type);
+    boolean existsByReturnRequestIdAndType(UUID returnRequestId, WalletTransaction.TransactionType type);
     Optional<WalletTransaction> findTopByTransactionCodeStartingWithOrderByTransactionCodeDesc(String transactionCodePrefix);
     List<WalletTransaction> findByTransactionCodeIsNullOrderByCreatedAtAscIdAsc();
 

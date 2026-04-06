@@ -1,5 +1,5 @@
 import './Vendor.css';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Eye, MessageSquare, Star } from 'lucide-react';
 import VendorLayout from './VendorLayout';
@@ -104,6 +104,7 @@ const VendorReviews = () => {
   const [confirmReplyIds, setConfirmReplyIds] = useState<string[] | null>(null);
   const [replyingIds, setReplyingIds] = useState<Set<string>>(new Set());
   const [reloadKey, setReloadKey] = useState(0);
+  const latestReviewsRequestIdRef = useRef(0);
   const canVendorReply = reviewService.canVendorReply();
 
   useEffect(() => {
@@ -134,6 +135,8 @@ const VendorReviews = () => {
   }, []);
 
   const fetchReviews = useCallback(async () => {
+    const requestId = ++latestReviewsRequestIdRef.current;
+
     try {
       setLoading(true);
       setLoadError(null);
@@ -144,6 +147,8 @@ const VendorReviews = () => {
         q: debouncedQuery || undefined,
         ...tabFilters,
       });
+
+      if (requestId !== latestReviewsRequestIdRef.current) return;
 
       setReviewsPage(next);
       setSelected((prev) => {
@@ -156,9 +161,11 @@ const VendorReviews = () => {
         setPage(next.totalPages);
       }
     } catch (err: unknown) {
+      if (requestId !== latestReviewsRequestIdRef.current) return;
       setReviewsPage(emptyReviewsPage);
       setLoadError(getUiErrorMessage(err, 'Không tải được đánh giá của cửa hàng.'));
     } finally {
+      if (requestId !== latestReviewsRequestIdRef.current) return;
       setLoading(false);
     }
   }, [debouncedQuery, page, tabFilters]);

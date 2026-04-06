@@ -42,6 +42,7 @@ public class VendorOrderController {
     @PreAuthorize("hasAnyRole('VENDOR', 'SUPER_ADMIN')")
     public ResponseEntity<VendorSubOrderPageResponse> getVendorSubOrders(
             @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) UUID storeId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String status,
@@ -50,6 +51,7 @@ public class VendorOrderController {
             @RequestParam(required = false, name = "date_to") String dateTo
     ) {
         UserContext ctx = authContext.requireVendor(authHeader);
+        UUID effectiveStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
         Pageable pageable = PageRequest.of(page, size);
 
         Order.OrderStatus parsedStatus = parseOrderStatus(status);
@@ -58,7 +60,7 @@ public class VendorOrderController {
 
         return ResponseEntity.ok(
                 orderService.getVendorSubOrderPage(
-                        ctx.getStoreId(),
+                        effectiveStoreId,
                         parsedStatus,
                         keyword,
                         parsedDateFrom,
@@ -72,30 +74,36 @@ public class VendorOrderController {
     @PreAuthorize("hasAnyRole('VENDOR', 'SUPER_ADMIN')")
     public ResponseEntity<VendorOrderDetailResponse> getVendorOrderDetail(
             @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) UUID storeId,
             @PathVariable UUID id
     ) {
         UserContext ctx = authContext.requireVendor(authHeader);
-        return ResponseEntity.ok(orderService.getVendorOrderDetail(id, ctx.getStoreId()));
+        UUID effectiveStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
+        return ResponseEntity.ok(orderService.getVendorOrderDetail(id, effectiveStoreId));
     }
 
     @GetMapping("/code/{code}")
     @PreAuthorize("hasAnyRole('VENDOR', 'SUPER_ADMIN')")
     public ResponseEntity<VendorOrderDetailResponse> getVendorOrderDetailByCode(
             @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) UUID storeId,
             @PathVariable String code
     ) {
         UserContext ctx = authContext.requireVendor(authHeader);
-        return ResponseEntity.ok(orderService.getVendorOrderDetailByCode(code, ctx.getStoreId()));
+        UUID effectiveStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
+        return ResponseEntity.ok(orderService.getVendorOrderDetailByCode(code, effectiveStoreId));
     }
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('VENDOR', 'SUPER_ADMIN')")
     public ResponseEntity<VendorOrderDetailResponse> updateStatus(
             @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) UUID storeId,
             @PathVariable UUID id,
             @RequestBody OrderController.StatusUpdateRequest request
     ) {
         UserContext ctx = authContext.requireVendor(authHeader);
+        UUID effectiveStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
         Order.OrderStatus status = parseOrderStatus(request.getStatus());
         if (status == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status is required");
@@ -103,7 +111,7 @@ public class VendorOrderController {
         return ResponseEntity.ok(
                 orderService.updateVendorOrderStatus(
                         id,
-                        ctx.getStoreId(),
+                        effectiveStoreId,
                         status,
                         request.getTrackingNumber(),
                         request.getCarrier(),
@@ -116,22 +124,26 @@ public class VendorOrderController {
     @PreAuthorize("hasAnyRole('VENDOR', 'SUPER_ADMIN')")
     public ResponseEntity<VendorOrderDetailResponse> updateTracking(
             @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) UUID storeId,
             @PathVariable UUID id,
             @RequestBody OrderController.TrackingUpdateRequest request
     ) {
         UserContext ctx = authContext.requireVendor(authHeader);
-        return ResponseEntity.ok(orderService.updateVendorOrderTracking(id, ctx.getStoreId(), request.getTrackingNumber()));
+        UUID effectiveStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
+        return ResponseEntity.ok(orderService.updateVendorOrderTracking(id, effectiveStoreId, request.getTrackingNumber()));
     }
 
     @PatchMapping("/{id}/delay")
     @PreAuthorize("hasAnyRole('VENDOR', 'SUPER_ADMIN')")
     public ResponseEntity<VendorOrderDetailResponse> notifyDelay(
             @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) UUID storeId,
             @PathVariable UUID id,
             @RequestBody DelayNoteRequest request
     ) {
         UserContext ctx = authContext.requireVendor(authHeader);
-        return ResponseEntity.ok(orderService.updateVendorDelayNote(id, ctx.getStoreId(), request.getWarehouseNote()));
+        UUID effectiveStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
+        return ResponseEntity.ok(orderService.updateVendorDelayNote(id, effectiveStoreId, request.getWarehouseNote()));
     }
 
     private Order.OrderStatus parseOrderStatus(String rawStatus) {

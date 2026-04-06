@@ -112,10 +112,7 @@ public class ReviewController {
             @RequestParam(required = false) Integer maxRating,
             Pageable pageable) {
         AuthContext.UserContext ctx = authContext.requireVendor(authHeader);
-        if (ctx.isAdmin() && storeId == null) {
-            throw new IllegalArgumentException("storeId is required for SUPER_ADMIN");
-        }
-        UUID resolvedStoreId = authContext.resolveStoreId(ctx, storeId);
+        UUID resolvedStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
         return ResponseEntity.ok(reviewService.getStoreReviews(
                 resolvedStoreId,
                 status,
@@ -133,10 +130,7 @@ public class ReviewController {
             @RequestParam(required = false) UUID storeId
     ) {
         AuthContext.UserContext ctx = authContext.requireVendor(authHeader);
-        if (ctx.isAdmin() && storeId == null) {
-            throw new IllegalArgumentException("storeId is required for SUPER_ADMIN");
-        }
-        UUID resolvedStoreId = authContext.resolveStoreId(ctx, storeId);
+        UUID resolvedStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
         return ResponseEntity.ok(reviewService.getStoreReviewSummary(resolvedStoreId));
     }
 
@@ -148,10 +142,7 @@ public class ReviewController {
             @RequestParam(required = false) UUID storeId,
             @Valid @RequestBody ReviewReplyRequest request) {
         AuthContext.UserContext ctx = authContext.requireVendor(authHeader);
-        if (ctx.isAdmin() && storeId == null) {
-            throw new IllegalArgumentException("storeId is required for SUPER_ADMIN");
-        }
-        UUID resolvedStoreId = authContext.resolveStoreId(ctx, storeId);
+        UUID resolvedStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
         return ResponseEntity.ok(reviewService.addStoreReply(id, resolvedStoreId, request.getReply()));
     }
 

@@ -3,8 +3,11 @@ package vn.edu.hcmuaf.fit.fashionstore.service;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import vn.edu.hcmuaf.fit.fashionstore.entity.CustomerWallet;
 import vn.edu.hcmuaf.fit.fashionstore.entity.CustomerWalletTransaction;
 import vn.edu.hcmuaf.fit.fashionstore.entity.Order;
@@ -27,6 +30,7 @@ import java.util.UUID;
 @Service
 public class WalletService {
     private static final String UQ_WALLET_TX_ORDER_TYPE = "uq_wallet_tx_order_type";
+    private static final String UQ_WALLET_TX_RETURN_TYPE = "uq_wallet_tx_return_type";
     private static final String UQ_CUSTOMER_WALLET_TX_RETURN_TYPE = "uq_customer_wallet_tx_return_type";
 
     private final OrderRepository orderRepository;
@@ -36,6 +40,26 @@ public class WalletService {
     private final CustomerWalletTransactionRepository customerWalletTransactionRepository;
     private final PayoutRequestRepository payoutRequestRepository;
     private final PublicCodeService publicCodeService;
+    private final AdminAuditLogService adminAuditLogService;
+
+    @Autowired
+    public WalletService(OrderRepository orderRepository,
+                         VendorWalletRepository vendorWalletRepository,
+                         WalletTransactionRepository walletTransactionRepository,
+                         CustomerWalletRepository customerWalletRepository,
+                         CustomerWalletTransactionRepository customerWalletTransactionRepository,
+                         PayoutRequestRepository payoutRequestRepository,
+                         PublicCodeService publicCodeService,
+                         AdminAuditLogService adminAuditLogService) {
+        this.orderRepository = orderRepository;
+        this.vendorWalletRepository = vendorWalletRepository;
+        this.walletTransactionRepository = walletTransactionRepository;
+        this.customerWalletRepository = customerWalletRepository;
+        this.customerWalletTransactionRepository = customerWalletTransactionRepository;
+        this.payoutRequestRepository = payoutRequestRepository;
+        this.publicCodeService = publicCodeService;
+        this.adminAuditLogService = adminAuditLogService;
+    }
 
     public WalletService(OrderRepository orderRepository,
                          VendorWalletRepository vendorWalletRepository,
@@ -44,13 +68,16 @@ public class WalletService {
                          CustomerWalletTransactionRepository customerWalletTransactionRepository,
                          PayoutRequestRepository payoutRequestRepository,
                          PublicCodeService publicCodeService) {
-        this.orderRepository = orderRepository;
-        this.vendorWalletRepository = vendorWalletRepository;
-        this.walletTransactionRepository = walletTransactionRepository;
-        this.customerWalletRepository = customerWalletRepository;
-        this.customerWalletTransactionRepository = customerWalletTransactionRepository;
-        this.payoutRequestRepository = payoutRequestRepository;
-        this.publicCodeService = publicCodeService;
+        this(
+                orderRepository,
+                vendorWalletRepository,
+                walletTransactionRepository,
+                customerWalletRepository,
+                customerWalletTransactionRepository,
+                payoutRequestRepository,
+                publicCodeService,
+                null
+        );
     }
 
     // ─── Escrow Engine ─────────────────────────────────────────────────────────
@@ -192,6 +219,84 @@ public class WalletService {
         walletTransactionRepository.save(transaction);
     }
 
+    @Transactional
+    public void debitVendorForReturnRefund(
+            UUID returnRequestId,
+            Order order,
+            BigDecimal refundAmount,
+            String reason
+    ) {
+        if (returnRequestId == null || order == null || order.getId() == null) return;
+        if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) return;
+
+        if (walletTransactionRepository.existsByReturnRequestIdAndType(
+                returnRequestId,
+                WalletTransaction.TransactionType.RETURN_REFUND_DEBIT
+        )) {
+            return;
+        }
+
+        Order lockedOrder = orderRepository.findByIdForUpdate(order.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        if (lockedOrder.getStoreId() == null) {
+            throw new ForbiddenException("Order does not belong to a vendor store");
+        }
+
+        if (walletTransactionRepository.existsByReturnRequestIdAndType(
+                returnRequestId,
+                WalletTransaction.TransactionType.RETURN_REFUND_DEBIT
+        )) {
+            return;
+        }
+
+        VendorWallet wallet = vendorWalletRepository.findByStoreIdForUpdate(lockedOrder.getStoreId())
+                .orElseGet(() -> createWallet(lockedOrder.getStoreId()));
+
+        BigDecimal total = wallet.getFrozenBalance().add(wallet.getAvailableBalance());
+        if (total.compareTo(refundAmount) < 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Insufficient vendor wallet balance for return refund"
+            );
+        }
+
+        BigDecimal remaining = refundAmount;
+        BigDecimal newFrozen = wallet.getFrozenBalance();
+        BigDecimal newAvailable = wallet.getAvailableBalance();
+        if (newFrozen.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal fromFrozen = newFrozen.min(remaining);
+            newFrozen = newFrozen.subtract(fromFrozen);
+            remaining = remaining.subtract(fromFrozen);
+        }
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            newAvailable = newAvailable.subtract(remaining);
+        }
+
+        WalletTransaction transaction = WalletTransaction.builder()
+                .transactionCode(publicCodeService.nextTransactionCode())
+                .wallet(wallet)
+                .orderId(lockedOrder.getId())
+                .returnRequestId(returnRequestId)
+                .amount(refundAmount)
+                .type(WalletTransaction.TransactionType.RETURN_REFUND_DEBIT)
+                .description(reason == null || reason.isBlank()
+                        ? "Return refund debit for Order " + (lockedOrder.getOrderCode() != null ? lockedOrder.getOrderCode() : lockedOrder.getId())
+                        : reason.trim())
+                .build();
+        try {
+            walletTransactionRepository.save(transaction);
+        } catch (DataIntegrityViolationException ex) {
+            if (isUniqueConstraintViolation(ex, UQ_WALLET_TX_RETURN_TYPE)) return;
+            throw ex;
+        }
+
+        wallet.setFrozenBalance(newFrozen);
+        wallet.setAvailableBalance(newAvailable);
+        wallet.setLastUpdated(LocalDateTime.now());
+        vendorWalletRepository.save(wallet);
+    }
+
     // ─── Payout System ─────────────────────────────────────────────────────────
 
     @Transactional
@@ -222,57 +327,111 @@ public class WalletService {
 
     @Transactional
     public PayoutRequest approvePayoutRequest(UUID payoutRequestId, UUID adminId) {
-        PayoutRequest request = payoutRequestRepository.findById(payoutRequestId)
-                .orElseThrow(() -> new ResourceNotFoundException("Payout request not found"));
+        return approvePayoutRequest(payoutRequestId, adminId, null);
+    }
 
-        if (request.getStatus() != PayoutRequest.PayoutStatus.PENDING) {
-            throw new IllegalStateException("Payout request is not pending");
+    @Transactional
+    public PayoutRequest approvePayoutRequest(UUID payoutRequestId, UUID adminId, String adminEmail) {
+        try {
+            PayoutRequest request = payoutRequestRepository.findByIdForUpdate(payoutRequestId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Payout request not found"));
+
+            if (request.getStatus() != PayoutRequest.PayoutStatus.PENDING) {
+                throw new IllegalStateException("Payout request is not pending");
+            }
+
+            VendorWallet wallet = vendorWalletRepository.findByStoreIdForUpdate(request.getStoreId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+
+            if (wallet.getAvailableBalance().compareTo(request.getAmount()) < 0) {
+                throw new IllegalArgumentException("Insufficient available balance for payout approval");
+            }
+
+            wallet.setAvailableBalance(wallet.getAvailableBalance().subtract(request.getAmount()));
+            wallet.setLastUpdated(LocalDateTime.now());
+            vendorWalletRepository.save(wallet);
+
+            request.setStatus(PayoutRequest.PayoutStatus.APPROVED);
+            request.setProcessedBy(adminId);
+            request.setProcessedAt(LocalDateTime.now());
+            payoutRequestRepository.save(request);
+
+            WalletTransaction transaction = WalletTransaction.builder()
+                    .transactionCode(publicCodeService.nextTransactionCode())
+                    .wallet(wallet)
+                    .amount(request.getAmount())
+                    .type(WalletTransaction.TransactionType.PAYOUT_DEBIT)
+                    .description("Payout approved: " + request.getId())
+                    .build();
+            walletTransactionRepository.save(transaction);
+
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "PAYOUT",
+                    "APPROVE_PAYOUT",
+                    request.getId(),
+                    true,
+                    "Approved payout request for store " + request.getStoreId()
+            );
+            return request;
+        } catch (RuntimeException ex) {
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "PAYOUT",
+                    "APPROVE_PAYOUT",
+                    payoutRequestId,
+                    false,
+                    ex.getMessage()
+            );
+            throw ex;
         }
-
-        VendorWallet wallet = vendorWalletRepository.findByStoreIdForUpdate(request.getStoreId())
-                .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
-
-        if (wallet.getAvailableBalance().compareTo(request.getAmount()) < 0) {
-            throw new IllegalArgumentException("Insufficient available balance for payout approval");
-        }
-
-        wallet.setAvailableBalance(wallet.getAvailableBalance().subtract(request.getAmount()));
-        wallet.setLastUpdated(LocalDateTime.now());
-        vendorWalletRepository.save(wallet);
-
-        request.setStatus(PayoutRequest.PayoutStatus.APPROVED);
-        request.setProcessedBy(adminId);
-        request.setProcessedAt(LocalDateTime.now());
-        payoutRequestRepository.save(request);
-
-        WalletTransaction transaction = WalletTransaction.builder()
-                .transactionCode(publicCodeService.nextTransactionCode())
-                .wallet(wallet)
-                .amount(request.getAmount())
-                .type(WalletTransaction.TransactionType.PAYOUT_DEBIT)
-                .description("Payout approved: " + request.getId())
-                .build();
-
-        walletTransactionRepository.save(transaction);
-
-        return request;
     }
 
     @Transactional
     public PayoutRequest rejectPayoutRequest(UUID payoutRequestId, UUID adminId, String note) {
-        PayoutRequest request = payoutRequestRepository.findById(payoutRequestId)
-                .orElseThrow(() -> new ResourceNotFoundException("Payout request not found"));
+        return rejectPayoutRequest(payoutRequestId, adminId, null, note);
+    }
 
-        if (request.getStatus() != PayoutRequest.PayoutStatus.PENDING) {
-            throw new IllegalStateException("Payout request is not pending");
+    @Transactional
+    public PayoutRequest rejectPayoutRequest(UUID payoutRequestId, UUID adminId, String adminEmail, String note) {
+        try {
+            PayoutRequest request = payoutRequestRepository.findByIdForUpdate(payoutRequestId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Payout request not found"));
+
+            if (request.getStatus() != PayoutRequest.PayoutStatus.PENDING) {
+                throw new IllegalStateException("Payout request is not pending");
+            }
+
+            request.setStatus(PayoutRequest.PayoutStatus.REJECTED);
+            request.setAdminNote(note);
+            request.setProcessedBy(adminId);
+            request.setProcessedAt(LocalDateTime.now());
+
+            PayoutRequest saved = payoutRequestRepository.save(request);
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "PAYOUT",
+                    "REJECT_PAYOUT",
+                    saved.getId(),
+                    true,
+                    note
+            );
+            return saved;
+        } catch (RuntimeException ex) {
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "PAYOUT",
+                    "REJECT_PAYOUT",
+                    payoutRequestId,
+                    false,
+                    ex.getMessage()
+            );
+            throw ex;
         }
-
-        request.setStatus(PayoutRequest.PayoutStatus.REJECTED);
-        request.setAdminNote(note);
-        request.setProcessedBy(adminId);
-        request.setProcessedAt(LocalDateTime.now());
-
-        return payoutRequestRepository.save(request);
     }
 
     // ─── Wallet Queries ────────────────────────────────────────────────────────
@@ -442,5 +601,18 @@ public class WalletService {
             current = current.getCause();
         }
         return false;
+    }
+
+    private void writeAdminAuditLog(
+            UUID actorId,
+            String actorEmail,
+            String domain,
+            String action,
+            UUID targetId,
+            boolean success,
+            String note
+    ) {
+        if (adminAuditLogService == null) return;
+        adminAuditLogService.logAction(actorId, actorEmail, domain, action, targetId, success, note);
     }
 }

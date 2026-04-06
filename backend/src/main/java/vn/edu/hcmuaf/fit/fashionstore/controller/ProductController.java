@@ -64,6 +64,7 @@ public class ProductController {
     @GetMapping("/my-store")
     public ResponseEntity<VendorProductPageResponse> getMyStoreProducts(
             @RequestHeader("Authorization") String authHeader,
+            @RequestParam(required = false) UUID storeId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String status,
@@ -71,6 +72,7 @@ public class ProductController {
             @RequestParam(required = false, name = "category_id") UUID categoryId,
             @RequestParam(required = false, name = "inventory") String inventoryState) {
         UserContext ctx = authContext.requireVendor(authHeader);
+        UUID effectiveStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
         Pageable pageable = PageRequest.of(page, size);
 
         Product.ProductStatus parsedStatus = parseProductStatus(status);
@@ -78,7 +80,7 @@ public class ProductController {
 
         return ResponseEntity.ok(
                 productService.getVendorProductPage(
-                        ctx.getStoreId(),
+                        effectiveStoreId,
                         parsedStatus,
                         keyword,
                         categoryId,

@@ -136,7 +136,7 @@ public class WalletController {
             @PathVariable UUID id
     ) {
         UserContext ctx = authContext.requireAdmin(authHeader);
-        PayoutRequest request = walletService.approvePayoutRequest(id, ctx.getUserId());
+        PayoutRequest request = walletService.approvePayoutRequest(id, ctx.getUserId(), ctx.getEmail());
         return ResponseEntity.ok(toPayoutResponse(request));
     }
 
@@ -149,7 +149,7 @@ public class WalletController {
     ) {
         UserContext ctx = authContext.requireAdmin(authHeader);
         String note = payload.getOrDefault("note", "");
-        PayoutRequest request = walletService.rejectPayoutRequest(id, ctx.getUserId(), note);
+        PayoutRequest request = walletService.rejectPayoutRequest(id, ctx.getUserId(), ctx.getEmail(), note);
         return ResponseEntity.ok(toPayoutResponse(request));
     }
 

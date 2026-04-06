@@ -151,4 +151,15 @@ public class AuthContext {
         
         return ctx.getStoreId();
     }
+
+    /**
+     * Resolve storeId for vendor-scoped APIs.
+     * SUPER_ADMIN must explicitly provide storeId to avoid ambiguous scope.
+     */
+    public UUID resolveRequiredStoreId(UserContext ctx, UUID requestedStoreId) {
+        if (ctx.isAdmin() && requestedStoreId == null) {
+            throw new IllegalArgumentException("storeId is required for SUPER_ADMIN");
+        }
+        return resolveStoreId(ctx, requestedStoreId);
+    }
 }

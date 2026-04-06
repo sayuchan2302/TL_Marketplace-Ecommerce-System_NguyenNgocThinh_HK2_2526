@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.hcmuaf.fit.fashionstore.dto.request.StoreRequest;
+import vn.edu.hcmuaf.fit.fashionstore.dto.response.PublicStoreResponse;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.StoreFollowResponse;
 import vn.edu.hcmuaf.fit.fashionstore.dto.response.StoreResponse;
 import vn.edu.hcmuaf.fit.fashionstore.security.AuthContext;
@@ -52,12 +53,12 @@ public class StoreController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<StoreResponse> getStoreById(@PathVariable UUID id) {
+    public ResponseEntity<PublicStoreResponse> getStoreById(@PathVariable UUID id) {
         return ResponseEntity.ok(storeService.getStoreById(id));
     }
 
     @GetMapping("/slug/{slug}")
-    public ResponseEntity<StoreResponse> getStoreBySlug(@PathVariable String slug) {
+    public ResponseEntity<PublicStoreResponse> getStoreBySlug(@PathVariable String slug) {
         return ResponseEntity.ok(storeService.getStoreBySlug(slug));
     }
 
@@ -97,7 +98,7 @@ public class StoreController {
     }
 
     @GetMapping
-    public ResponseEntity<List<StoreResponse>> getActiveStores() {
+    public ResponseEntity<List<PublicStoreResponse>> getActiveStores() {
         return ResponseEntity.ok(storeService.getAllActiveStores());
     }
 
@@ -118,28 +119,36 @@ public class StoreController {
     public ResponseEntity<StoreResponse> approveStore(
             @PathVariable UUID id,
             @RequestHeader("Authorization") String authHeader) {
-        String adminEmail = jwtService.extractUsername(authHeader.replace("Bearer ", ""));
-        return ResponseEntity.ok(storeService.approveStore(id, adminEmail));
+        AuthContext.UserContext admin = authContext.requireAdmin(authHeader);
+        return ResponseEntity.ok(storeService.approveStore(id, admin.getUserId(), admin.getEmail()));
     }
 
     @PostMapping("/{id}/reject")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<StoreResponse> rejectStore(
             @PathVariable UUID id,
+            @RequestHeader("Authorization") String authHeader,
             @RequestBody RejectRequest request) {
-        return ResponseEntity.ok(storeService.rejectStore(id, request.getReason()));
+        AuthContext.UserContext admin = authContext.requireAdmin(authHeader);
+        return ResponseEntity.ok(storeService.rejectStore(id, admin.getUserId(), admin.getEmail(), request.getReason()));
     }
 
     @PostMapping("/{id}/suspend")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<StoreResponse> suspendStore(@PathVariable UUID id) {
-        return ResponseEntity.ok(storeService.suspendStore(id));
+    public ResponseEntity<StoreResponse> suspendStore(
+            @PathVariable UUID id,
+            @RequestHeader("Authorization") String authHeader) {
+        AuthContext.UserContext admin = authContext.requireAdmin(authHeader);
+        return ResponseEntity.ok(storeService.suspendStore(id, admin.getUserId(), admin.getEmail()));
     }
 
     @PostMapping("/{id}/reactivate")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<StoreResponse> reactivateStore(@PathVariable UUID id) {
-        return ResponseEntity.ok(storeService.reactivateStore(id));
+    public ResponseEntity<StoreResponse> reactivateStore(
+            @PathVariable UUID id,
+            @RequestHeader("Authorization") String authHeader) {
+        AuthContext.UserContext admin = authContext.requireAdmin(authHeader);
+        return ResponseEntity.ok(storeService.reactivateStore(id, admin.getUserId(), admin.getEmail()));
     }
 
     @PutMapping("/my-store")

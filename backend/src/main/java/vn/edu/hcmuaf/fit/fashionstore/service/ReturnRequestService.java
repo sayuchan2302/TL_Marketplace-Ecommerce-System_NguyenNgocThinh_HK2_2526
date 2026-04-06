@@ -3,6 +3,7 @@ package vn.edu.hcmuaf.fit.fashionstore.service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,24 @@ public class ReturnRequestService {
     private final StoreRepository storeRepository;
     private final PublicCodeService publicCodeService;
     private final WalletService walletService;
+    private final AdminAuditLogService adminAuditLogService;
+
+    @Autowired
+    public ReturnRequestService(
+            ReturnRequestRepository returnRequestRepository,
+            OrderRepository orderRepository,
+            StoreRepository storeRepository,
+            PublicCodeService publicCodeService,
+            WalletService walletService,
+            AdminAuditLogService adminAuditLogService
+    ) {
+        this.returnRequestRepository = returnRequestRepository;
+        this.orderRepository = orderRepository;
+        this.storeRepository = storeRepository;
+        this.publicCodeService = publicCodeService;
+        this.walletService = walletService;
+        this.adminAuditLogService = adminAuditLogService;
+    }
 
     public ReturnRequestService(
             ReturnRequestRepository returnRequestRepository,
@@ -44,11 +63,14 @@ public class ReturnRequestService {
             PublicCodeService publicCodeService,
             WalletService walletService
     ) {
-        this.returnRequestRepository = returnRequestRepository;
-        this.orderRepository = orderRepository;
-        this.storeRepository = storeRepository;
-        this.publicCodeService = publicCodeService;
-        this.walletService = walletService;
+        this(
+                returnRequestRepository,
+                orderRepository,
+                storeRepository,
+                publicCodeService,
+                walletService,
+                null
+        );
     }
 
     @Transactional
@@ -294,6 +316,12 @@ public class ReturnRequestService {
         request.setUpdatedBy(actor);
         ReturnRequest saved = returnRequestRepository.save(request);
 
+        walletService.debitVendorForReturnRefund(
+                saved.getId(),
+                saved.getOrder(),
+                refundAmount,
+                "Vendor debit for return " + resolveReturnCode(saved)
+        );
         walletService.refundToCustomerFromEscrow(
                 saved.getId(),
                 saved.getOrder(),
@@ -343,44 +371,88 @@ public class ReturnRequestService {
             UUID returnId,
             ReturnAdminVerdictRequest.VerdictAction action,
             String adminNote,
-            String actor
+            UUID adminId,
+            String adminEmail
     ) {
         if (action == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Verdict action is required");
         }
 
-        ReturnRequest request = findById(returnId);
-        assertStatus(request, ReturnRequest.ReturnStatus.DISPUTED);
+        ReturnAdminVerdictRequest.VerdictAction safeAction = action;
+        try {
+            ReturnRequest request = findById(returnId);
+            assertStatus(request, ReturnRequest.ReturnStatus.DISPUTED);
 
-        if (action == ReturnAdminVerdictRequest.VerdictAction.REFUND_TO_CUSTOMER) {
-            BigDecimal refundAmount = calculateRefundAmount(request);
-            if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Refund amount must be greater than zero");
+            if (safeAction == ReturnAdminVerdictRequest.VerdictAction.REFUND_TO_CUSTOMER) {
+                BigDecimal refundAmount = calculateRefundAmount(request);
+                if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Refund amount must be greater than zero");
+                }
+                request.setStatus(ReturnRequest.ReturnStatus.COMPLETED);
+                request.setCompletedAt(LocalDateTime.now());
+                request.setAdminNote(normalizeOptionalText(adminNote));
+                request.setAdminFinalized(true);
+                request.setUpdatedBy(adminEmail);
+                ReturnRequest saved = returnRequestRepository.save(request);
+
+                walletService.debitVendorForReturnRefund(
+                        saved.getId(),
+                        saved.getOrder(),
+                        refundAmount,
+                        "Admin verdict debit for return " + resolveReturnCode(saved)
+                );
+                walletService.refundToCustomerFromEscrow(
+                        saved.getId(),
+                        saved.getOrder(),
+                        refundAmount,
+                        "Dispute refund for return " + resolveReturnCode(saved)
+                );
+
+                writeAdminAuditLog(
+                        adminId,
+                        adminEmail,
+                        "RETURN",
+                        "FINAL_VERDICT_REFUND_TO_CUSTOMER",
+                        saved.getId(),
+                        true,
+                        normalizeOptionalText(adminNote)
+                );
+                return toResponse(saved);
             }
-            request.setStatus(ReturnRequest.ReturnStatus.COMPLETED);
-            request.setCompletedAt(LocalDateTime.now());
-            request.setAdminNote(normalizeOptionalText(adminNote));
+
+            request.setStatus(ReturnRequest.ReturnStatus.REJECTED);
+            String normalizedAdminNote = normalizeOptionalText(adminNote);
+            if (normalizedAdminNote.isEmpty()) {
+                normalizedAdminNote = "Final verdict: release to vendor";
+            }
+            request.setAdminNote(normalizedAdminNote);
             request.setAdminFinalized(true);
-            request.setUpdatedBy(actor);
+            request.setUpdatedBy(adminEmail);
             ReturnRequest saved = returnRequestRepository.save(request);
-            walletService.refundToCustomerFromEscrow(
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "RETURN",
+                    "FINAL_VERDICT_RELEASE_TO_VENDOR",
                     saved.getId(),
-                    saved.getOrder(),
-                    refundAmount,
-                    "Dispute refund for return " + resolveReturnCode(saved)
+                    true,
+                    normalizedAdminNote
             );
             return toResponse(saved);
+        } catch (RuntimeException ex) {
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "RETURN",
+                    safeAction == ReturnAdminVerdictRequest.VerdictAction.REFUND_TO_CUSTOMER
+                            ? "FINAL_VERDICT_REFUND_TO_CUSTOMER"
+                            : "FINAL_VERDICT_RELEASE_TO_VENDOR",
+                    returnId,
+                    false,
+                    ex.getMessage()
+            );
+            throw ex;
         }
-
-        request.setStatus(ReturnRequest.ReturnStatus.REJECTED);
-        String normalizedAdminNote = normalizeOptionalText(adminNote);
-        if (normalizedAdminNote.isEmpty()) {
-            normalizedAdminNote = "Final verdict: release to vendor";
-        }
-        request.setAdminNote(normalizedAdminNote);
-        request.setAdminFinalized(true);
-        request.setUpdatedBy(actor);
-        return toResponse(returnRequestRepository.save(request));
     }
 
     private ReturnRequest findById(UUID id) {
@@ -592,5 +664,18 @@ public class ReturnRequestService {
                 .createdAt(request.getCreatedAt())
                 .updatedAt(request.getUpdatedAt())
                 .build();
+    }
+
+    private void writeAdminAuditLog(
+            UUID actorId,
+            String actorEmail,
+            String domain,
+            String action,
+            UUID targetId,
+            boolean success,
+            String note
+    ) {
+        if (adminAuditLogService == null) return;
+        adminAuditLogService.logAction(actorId, actorEmail, domain, action, targetId, success, note);
     }
 }

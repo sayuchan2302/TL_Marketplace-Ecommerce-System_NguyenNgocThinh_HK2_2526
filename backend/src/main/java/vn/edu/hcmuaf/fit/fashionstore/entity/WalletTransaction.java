@@ -22,7 +22,7 @@ import java.util.UUID;
                 @Index(name = "idx_wallet_transactions_transaction_code", columnList = "transaction_code", unique = true)
         },
         uniqueConstraints = {
-                @UniqueConstraint(name = "uq_wallet_tx_order_type", columnNames = {"order_id", "type"})
+                @UniqueConstraint(name = "uq_wallet_tx_return_type", columnNames = {"return_request_id", "type"})
         }
 )
 public class WalletTransaction extends BaseEntity {
@@ -37,6 +37,9 @@ public class WalletTransaction extends BaseEntity {
     @Column(name = "order_id")
     private UUID orderId;
 
+    @Column(name = "return_request_id")
+    private UUID returnRequestId;
+
     @Column(name = "amount", nullable = false)
     private BigDecimal amount;
 
@@ -48,6 +51,6 @@ public class WalletTransaction extends BaseEntity {
     private String description;
 
     public enum TransactionType {
-        CREDIT, DEBIT, WITHDRAWAL, ESCROW_CREDIT, ESCROW_RELEASE, PAYOUT_DEBIT, REFUND_DEBIT
+        CREDIT, DEBIT, WITHDRAWAL, ESCROW_CREDIT, ESCROW_RELEASE, PAYOUT_DEBIT, REFUND_DEBIT, RETURN_REFUND_DEBIT
     }
 }

@@ -206,6 +206,7 @@ public class ReturnRequestController {
                 id,
                 request.getAction(),
                 request.getAdminNote(),
+                admin.getUserId(),
                 admin.getEmail()
         ));
     }

@@ -204,6 +204,7 @@ class ReturnRequestServiceTest {
                 returnId,
                 ReturnAdminVerdictRequest.VerdictAction.RELEASE_TO_VENDOR,
                 "   ",
+                UUID.randomUUID(),
                 "admin@local"
         );
 
@@ -214,6 +215,40 @@ class ReturnRequestServiceTest {
         verify(returnRequestRepository).save(captor.capture());
         assertTrue(Boolean.TRUE.equals(captor.getValue().getAdminFinalized()));
         assertEquals(0, recordingWalletService.getRefundCallCount());
+    }
+
+    @Test
+    void confirmReceiptDebitsVendorBeforeCreditingCustomer() {
+        UUID returnId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID storeId = UUID.randomUUID();
+
+        User user = buildUser(userId);
+        Order order = buildOrder(UUID.randomUUID(), user, Order.OrderStatus.DELIVERED, List.of());
+        ReturnRequest request = ReturnRequest.builder()
+                .id(returnId)
+                .order(order)
+                .user(user)
+                .storeId(storeId)
+                .status(ReturnRequest.ReturnStatus.RECEIVED)
+                .items(List.of(new ReturnRequest.ReturnItemSnapshot(
+                        UUID.randomUUID(),
+                        "Polo Shirt",
+                        "M",
+                        "https://example.com/item.jpg",
+                        null,
+                        1,
+                        new BigDecimal("120000")
+                )))
+                .build();
+
+        when(returnRequestRepository.findById(returnId)).thenReturn(Optional.of(request));
+        when(returnRequestRepository.save(any(ReturnRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReturnRequestResponse response = returnRequestService.confirmReceipt(returnId, storeId, "vendor@local");
+
+        assertEquals(ReturnRequest.ReturnStatus.COMPLETED, response.getStatus());
+        assertEquals(List.of("debit", "refund"), recordingWalletService.getCallSequence());
     }
 
     private User buildUser(UUID userId) {
@@ -286,19 +321,30 @@ class ReturnRequestServiceTest {
     private static final class RecordingWalletService extends WalletService {
         private int refundCallCount = 0;
         private final List<UUID> returnRequestIds = new ArrayList<>();
+        private final List<String> callSequence = new ArrayList<>();
 
         private RecordingWalletService() {
             super(null, null, null, null, null, null, null);
         }
 
         @Override
+        public void debitVendorForReturnRefund(UUID returnRequestId, Order order, BigDecimal refundAmount, String reason) {
+            callSequence.add("debit");
+        }
+
+        @Override
         public void refundToCustomerFromEscrow(UUID returnRequestId, Order order, BigDecimal refundAmount, String reason) {
+            callSequence.add("refund");
             refundCallCount++;
             returnRequestIds.add(returnRequestId);
         }
 
         private int getRefundCallCount() {
             return refundCallCount;
+        }
+
+        private List<String> getCallSequence() {
+            return callSequence;
         }
     }
 }
