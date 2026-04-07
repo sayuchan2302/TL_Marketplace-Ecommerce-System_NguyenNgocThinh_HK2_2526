@@ -32,27 +32,10 @@ public class VendorWallet extends BaseEntity {
     @Builder.Default
     private BigDecimal frozenBalance = BigDecimal.ZERO;
 
-    /**
-     * Backward-compatibility with legacy schema where vendor_wallets.balance is NOT NULL.
-     * Keep this column synchronized with the new escrow model to avoid insert/update failures
-     * on environments that have not dropped the old column yet.
-     */
-    @Column(name = "balance", nullable = false)
-    @Builder.Default
-    private BigDecimal balance = BigDecimal.ZERO;
-
     @Column(name = "last_updated")
     private LocalDateTime lastUpdated;
 
     public BigDecimal getTotalBalance() {
         return availableBalance.add(frozenBalance);
-    }
-
-    @PrePersist
-    @PreUpdate
-    protected void syncLegacyBalance() {
-        if (availableBalance == null) availableBalance = BigDecimal.ZERO;
-        if (frozenBalance == null) frozenBalance = BigDecimal.ZERO;
-        balance = availableBalance.add(frozenBalance);
     }
 }

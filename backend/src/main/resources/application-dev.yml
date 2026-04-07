@@ -6,9 +6,6 @@ spring:
 app:
   seed:
     enabled: true
-  migration:
-    user-role:
-      enabled: true
 
 logging:
   level:

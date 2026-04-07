@@ -445,7 +445,6 @@ public class WalletService {
                 .storeId(storeId)
                 .availableBalance(BigDecimal.ZERO)
                 .frozenBalance(BigDecimal.ZERO)
-                .balance(BigDecimal.ZERO)
                 .lastUpdated(LocalDateTime.now())
                 .build());
     }

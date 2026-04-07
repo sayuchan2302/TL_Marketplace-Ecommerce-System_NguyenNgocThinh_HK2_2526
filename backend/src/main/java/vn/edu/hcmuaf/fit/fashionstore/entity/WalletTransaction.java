@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.Check;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -16,6 +17,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@Check(constraints = "type IN ('CREDIT', 'DEBIT', 'WITHDRAWAL', 'ESCROW_CREDIT', 'ESCROW_RELEASE', 'PAYOUT_DEBIT', 'REFUND_DEBIT', 'RETURN_REFUND_DEBIT')")
 @Table(
         name = "wallet_transactions",
         indexes = {

@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.Check;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,6 +21,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@Check(constraints = "status IN ('PENDING', 'WAITING_FOR_VENDOR', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED')")
 @Table(name = "orders", indexes = {
         @Index(name = "idx_orders_order_code", columnList = "order_code", unique = true),
         @Index(name = "idx_orders_store_id", columnList = "store_id"),
