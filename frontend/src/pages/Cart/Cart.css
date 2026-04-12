@@ -387,56 +387,6 @@
   color: var(--co-black);
 }
 
-/* ---- Coupon ---- */
-.coupon-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
-}
-
-.coupon-input {
-  flex: 1;
-  padding: 11px 16px;
-  border: 1px solid #ddd;
-  border-radius: 24px;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.coupon-input:focus {
-  border-color: var(--co-blue);
-  box-shadow: 0 0 0 3px rgba(47, 90, 207, 0.1);
-}
-
-.coupon-input:focus-visible {
-  border-color: var(--co-blue);
-  box-shadow: 0 0 0 3px rgba(47, 90, 207, 0.2);
-}
-
-.btn-apply {
-  padding: 0 20px;
-  background: var(--co-blue);
-  color: var(--co-white);
-  border: none;
-  border-radius: 24px;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.2s;
-}
-
-.btn-apply:hover:not(:disabled) {
-  background: var(--co-blue-dark);
-}
-
-.btn-apply:disabled {
-  background: var(--co-gray-200);
-  color: var(--text-secondary);
-  cursor: not-allowed;
-}
-
 /* ---- Summary Lines ---- */
 .summary-lines {
   display: flex;
@@ -677,7 +627,7 @@
 .store-name {
   font-size: 15px;
   font-weight: 600;
-  color: var(--co-gray-900);
+  color: var(--co-blue);
 }
 
 .store-item-count {

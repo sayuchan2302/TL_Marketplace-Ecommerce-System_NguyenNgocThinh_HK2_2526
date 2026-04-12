@@ -8,9 +8,11 @@ import vn.edu.hcmuaf.fit.marketplace.dto.response.AdminUserResponse;
 import vn.edu.hcmuaf.fit.marketplace.entity.Store;
 import vn.edu.hcmuaf.fit.marketplace.entity.User;
 import vn.edu.hcmuaf.fit.marketplace.exception.ResourceNotFoundException;
+import vn.edu.hcmuaf.fit.marketplace.repository.OrderRepository;
 import vn.edu.hcmuaf.fit.marketplace.repository.StoreRepository;
 import vn.edu.hcmuaf.fit.marketplace.repository.UserRepository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -30,10 +32,12 @@ public class AdminUserService {
 
     private final UserRepository userRepository;
     private final StoreRepository storeRepository;
+    private final OrderRepository orderRepository;
 
-    public AdminUserService(UserRepository userRepository, StoreRepository storeRepository) {
+    public AdminUserService(UserRepository userRepository, StoreRepository storeRepository, OrderRepository orderRepository) {
         this.userRepository = userRepository;
         this.storeRepository = storeRepository;
+        this.orderRepository = orderRepository;
     }
 
     @Transactional(readOnly = true)
@@ -43,9 +47,10 @@ public class AdminUserService {
         List<User> users = userRepository.findAll();
         Map<UUID, Store> storesByOwnerId = buildStoresByOwnerId();
         Map<UUID, Store> storesById = buildStoresById(storesByOwnerId);
+        Map<UUID, BigDecimal> spendingByUserId = buildSpendingByUserId(users);
 
         return users.stream()
-                .map(user -> toResponse(user, resolveStore(user, storesByOwnerId, storesById)))
+                .map(user -> toResponse(user, resolveStore(user, storesByOwnerId, storesById), spendingByUserId.getOrDefault(user.getId(), BigDecimal.ZERO)))
                 .filter(row -> role == null || role.name().equals(row.getRole()))
                 .filter(row -> expectedStatus == null || expectedStatus.name().equals(row.getStatus()))
                 .filter(row -> normalizedQuery.isEmpty() || matchesQuery(row, normalizedQuery))
@@ -65,7 +70,7 @@ public class AdminUserService {
         user.setIsActive(active);
         User saved = userRepository.save(user);
         Store store = resolveStore(saved, buildStoresByOwnerId(), null);
-        return toResponse(saved, store);
+        return toResponse(saved, store, BigDecimal.ZERO);
     }
 
     private Map<UUID, Store> buildStoresByOwnerId() {
@@ -89,7 +94,7 @@ public class AdminUserService {
         return storesByOwnerId.get(user.getId());
     }
 
-    private AdminUserResponse toResponse(User user, Store store) {
+    private AdminUserResponse toResponse(User user, Store store, BigDecimal totalSpent) {
         String status;
         if (!Boolean.TRUE.equals(user.getIsActive())) {
             status = AdminUserStatus.LOCKED.name();
@@ -110,6 +115,7 @@ public class AdminUserService {
                 .height(user.getHeight())
                 .weight(user.getWeight())
                 .loyaltyPoints(user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() : 0L)
+                .totalSpent(totalSpent != null ? totalSpent : BigDecimal.ZERO)
                 .role(user.getRole() != null ? user.getRole().name() : User.Role.CUSTOMER.name())
                 .status(status)
                 .isActive(Boolean.TRUE.equals(user.getIsActive()))
@@ -121,6 +127,23 @@ public class AdminUserService {
                 .storeApprovalStatus(store != null ? store.getApprovalStatus().name() : null)
                 .storeStatus(store != null ? store.getStatus().name() : null)
                 .build();
+    }
+
+    private Map<UUID, BigDecimal> buildSpendingByUserId(List<User> users) {
+        List<UUID> userIds = users.stream()
+                .map(User::getId)
+                .filter(id -> id != null)
+                .toList();
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return orderRepository.calculateDeliveredSpendingByUserIds(userIds).stream()
+                .collect(Collectors.toMap(
+                        OrderRepository.UserSpendingProjection::getUserId,
+                        row -> row.getTotalSpent() != null ? row.getTotalSpent() : BigDecimal.ZERO,
+                        (left, right) -> right
+                ));
     }
 
     private static LocalDateTime safeCreatedAt(LocalDateTime value) {

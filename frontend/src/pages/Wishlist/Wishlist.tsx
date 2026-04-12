@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingCart, Trash2, ChevronRight, X } from 'lucide-react';
+import { Heart, ShoppingCart, ChevronRight, X } from 'lucide-react';
 import { useWishlist } from '../../contexts/WishlistContext';
 import { useCart } from '../../contexts/CartContext';
 import { useCartAnimation } from '../../context/CartAnimationContext';
 import { productService } from '../../services/productService';
 import { formatPrice } from '../../utils/formatters';
+import ProductCard from '../../components/ProductCard/ProductCard';
 import './Wishlist.css';
 
 const AVAILABLE_SIZES = ['S', 'M', 'L', 'XL', '2XL'];
@@ -97,28 +98,19 @@ const Wishlist = () => {
         ) : (
           <div className="wishlist-grid">
             {items.map(item => (
-              <div key={item.id} className="wishlist-card">
-                <div className="wishlist-card-img-wrap">
-                  <Link to={`/product/${item.id}`}>
-                    <img src={item.image} alt={item.name} className="wishlist-card-img" />
-                  </Link>
-                  <button className="wishlist-remove-btn" onClick={() => removeFromWishlist(item.id)} title="Xoá khỏi yêu thích">
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-                <div className="wishlist-card-info">
-                  <Link to={`/product/${item.id}`} className="wishlist-card-name">{item.name}</Link>
-                  <div className="wishlist-card-prices">
-                    <span className="wishlist-price">{formatPrice(item.price)}</span>
-                    {item.originalPrice && (
-                      <span className="wishlist-orig-price">{formatPrice(item.originalPrice)}</span>
-                    )}
-                  </div>
-                  <button className="wishlist-add-cart-btn" onClick={() => openVariantModal(item)}>
-                    <ShoppingCart size={16} />
-                    Thêm vào giỏ
-                  </button>
-                </div>
+              <div key={item.id} className="wishlist-grid-item">
+                <ProductCard
+                  id={item.id}
+                  name={item.name}
+                  price={item.price}
+                  originalPrice={item.originalPrice}
+                  image={item.image}
+                  storeId={item.storeId}
+                  storeName={item.storeName}
+                  isOfficialStore={item.isOfficialStore}
+                  staticMode
+                  onQuickAdd={() => openVariantModal(item)}
+                />
               </div>
             ))}
           </div>

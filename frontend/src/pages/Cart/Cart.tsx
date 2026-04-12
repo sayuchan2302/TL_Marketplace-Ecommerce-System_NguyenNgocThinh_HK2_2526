@@ -40,12 +40,12 @@ const storeGroupTransition = {
   transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] as const },
 };
 
+
 const Cart = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { items, updateQuantity, removeFromCart, groupedByStore } = useCart();
   const [selectedItems, setSelectedItems] = useState<string[]>(items.map(i => i.cartId));
-  const [couponCode, setCouponCode] = useState('');
   const [collapsedStores, setCollapsedStores] = useState<Set<string>>(new Set());
 
   useLayoutEffect(() => {
@@ -333,12 +333,6 @@ const Cart = () => {
           <div className="cart-right-col">
             <div className="cart-summary-card">
               <h2 className="summary-title">{tCommon.actions.viewDetails}</h2>
-
-              <div className="coupon-row">
-                <input type="text" placeholder={t.coupon.placeholder} value={couponCode}
-                  onChange={e => setCouponCode(e.target.value)} className="coupon-input" />
-                <button className="btn-apply" disabled={!couponCode.trim()}>{t.coupon.apply}</button>
-              </div>
 
               <div className="summary-lines">
                 <div className="sum-row">

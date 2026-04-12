@@ -15,6 +15,7 @@ export interface AdminUserRecord {
   height?: number;
   weight?: number;
   loyaltyPoints?: number;
+  totalSpent?: number;
   role: AdminUserRole;
   status: AdminUserStatus;
   isActive: boolean;

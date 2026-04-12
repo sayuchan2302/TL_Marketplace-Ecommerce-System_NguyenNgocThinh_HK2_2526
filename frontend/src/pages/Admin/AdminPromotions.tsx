@@ -50,6 +50,16 @@ const formatDate = (value: string) => {
 
 const normalizeCode = (value: string) => value.trim().replace(/\s+/g, '').toUpperCase();
 const isAllMarketplaceSelection = (storeId: string) => storeId === ALL_MARKETPLACE_STORE;
+const campaignScopeKey = (promotion: AdminPromotionRecord) =>
+  [
+    normalizeCode(promotion.code),
+    promotion.discountType,
+    Number(promotion.discountValue || 0).toFixed(4),
+    Number(promotion.minOrderValue || 0).toFixed(2),
+    promotion.startDate,
+    promotion.endDate,
+    promotion.status,
+  ].join('|');
 
 const toUpsertInput = (form: PromotionFormState, storeIdOverride?: string): AdminPromotionUpsertInput => ({
   storeId: storeIdOverride ?? form.storeId,
@@ -95,7 +105,9 @@ const validateForm = (
   }
   if (!form.name.trim()) return 'Tên chiến dịch không được để trống.';
   if (!form.code.trim()) return 'Mã voucher không được để trống.';
-  if (!/^[A-Z0-9-]{4,24}$/.test(form.code)) return 'Mã chỉ gồm chữ hoa, số và dấu gạch ngang.';
+  if (!/^[A-Z0-9-]{3,24}$/.test(form.code)) {
+    return 'Mã voucher phải từ 3-24 ký tự, chỉ gồm chữ hoa, số và dấu gạch ngang.';
+  }
 
   const targetStoreIds = isAllMarketplaceSelection(form.storeId)
     ? selectableStores.map((store) => store.id)
@@ -152,6 +164,29 @@ const AdminPromotions = () => {
     () => stores.filter((store) => store.approvalStatus === 'APPROVED'),
     [stores],
   );
+
+  const globalCampaignKeys = useMemo(() => {
+    if (selectableStores.length === 0) return new Set<string>();
+
+    const storesByCampaign = new Map<string, Set<string>>();
+    rows.forEach((item) => {
+      if (!item.storeId) return;
+      const key = campaignScopeKey(item);
+      if (!storesByCampaign.has(key)) {
+        storesByCampaign.set(key, new Set());
+      }
+      storesByCampaign.get(key)?.add(item.storeId);
+    });
+
+    const requiredStoreCount = selectableStores.length;
+    const result = new Set<string>();
+    storesByCampaign.forEach((storeIds, key) => {
+      if (storeIds.size === requiredStoreCount) {
+        result.add(key);
+      }
+    });
+    return result;
+  }, [rows, selectableStores]);
 
   const loadData = useCallback(async () => {
     try {
@@ -398,6 +433,7 @@ const AdminPromotions = () => {
               {pagedItems.map((promo) => {
                 const usedPercent = promo.totalIssued > 0 ? Math.min(100, Math.round((promo.usedCount / promo.totalIssued) * 100)) : 0;
                 const currentStatus = deriveStatus(promo);
+                const isGlobalCampaign = globalCampaignKeys.has(campaignScopeKey(promo));
                 return (
                   <motion.div
                     key={promo.id}
@@ -422,7 +458,7 @@ const AdminPromotions = () => {
                     <div role="cell">
                       <p className="admin-bold promo-name">{promo.name}</p>
                       <p className="admin-muted promo-code">{promo.code}</p>
-                      <p className="admin-muted small">{promo.storeName || 'Store không xác định'}</p>
+                      <p className="admin-muted small">{isGlobalCampaign ? 'Toàn sàn' : (promo.storeName || 'Store không xác định')}</p>
                     </div>
                     <div role="cell">{discountTypeLabel(promo.discountType)}</div>
                     <div role="cell">

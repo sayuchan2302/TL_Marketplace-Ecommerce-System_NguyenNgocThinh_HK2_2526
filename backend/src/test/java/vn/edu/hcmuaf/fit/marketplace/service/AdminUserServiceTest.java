@@ -11,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 import vn.edu.hcmuaf.fit.marketplace.dto.response.AdminUserResponse;
 import vn.edu.hcmuaf.fit.marketplace.entity.Store;
 import vn.edu.hcmuaf.fit.marketplace.entity.User;
+import vn.edu.hcmuaf.fit.marketplace.repository.OrderRepository;
 import vn.edu.hcmuaf.fit.marketplace.repository.StoreRepository;
 import vn.edu.hcmuaf.fit.marketplace.repository.UserRepository;
 
@@ -34,6 +35,9 @@ class AdminUserServiceTest {
 
     @Mock
     private StoreRepository storeRepository;
+
+    @Mock
+    private OrderRepository orderRepository;
 
     @InjectMocks
     private AdminUserService adminUserService;
@@ -75,6 +79,7 @@ class AdminUserServiceTest {
     void listUsersMapsStatusesAndSupportsFilters() {
         when(userRepository.findAll()).thenReturn(List.of(customer, pendingVendor, lockedVendor, superAdmin));
         when(storeRepository.findAll()).thenReturn(List.of(pendingStore, activeVendorStore));
+        when(orderRepository.calculateDeliveredSpendingByUserIds(any())).thenReturn(List.of());
 
         List<AdminUserResponse> allRows = adminUserService.listUsers(null, null, null);
         assertEquals(4, allRows.size());

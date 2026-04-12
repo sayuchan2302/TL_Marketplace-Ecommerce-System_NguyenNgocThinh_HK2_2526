@@ -87,6 +87,16 @@ const formatDateTime = (value?: string) => {
   });
 };
 
+
+const formatVnd = (amount?: number) => {
+  const safeAmount = Number.isFinite(amount) ? Number(amount) : 0;
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(safeAmount);
+};
+
 const statusLabel = (status: UserStatus) => {
   if (status === 'ACTIVE') return 'Đang hoạt động';
   if (status === 'LOCKED') return 'Đã khóa';
@@ -100,9 +110,9 @@ const statusTone = (status: UserStatus) => {
 };
 
 const roleTone = (role: UserRole) => {
-  if (role === 'CUSTOMER') return 'neutral';
-  if (role === 'VENDOR') return 'info';
-  return 'warning';
+  if (role === 'CUSTOMER') return 'role-customer';
+  if (role === 'VENDOR') return 'role-vendor';
+  return 'role-admin';
 };
 
 const storeApprovalLabel = (status?: UserRecord['storeApprovalStatus']) => {
@@ -409,15 +419,13 @@ const AdminUsers = () => {
                   </div>
                   <div role="columnheader">Tài khoản</div>
                   <div role="columnheader">Vai trò</div>
-                  <div role="columnheader">Phạm vi</div>
+                  <div role="columnheader">Tổng chi</div>
                   <div role="columnheader">Ngày tham gia</div>
                   <div role="columnheader">Trạng thái</div>
                   <div role="columnheader">Hành động</div>
                 </div>
 
                 {pagedUsers.map((user) => {
-                  const scope = getUserScope(user);
-
                   return (
                     <motion.div
                       key={user.id}
@@ -449,10 +457,7 @@ const AdminUsers = () => {
                       <div role="cell">
                         <span className={`admin-pill ${roleTone(user.role)}`}>{roleLabel(user.role)}</span>
                       </div>
-                      <div role="cell">
-                        <div className="admin-bold">{scope.title}</div>
-                        <div className="admin-muted small">{scope.sub}</div>
-                      </div>
+                      <div role="cell" className="admin-bold">{formatVnd(user.totalSpent)}</div>
                       <div role="cell">{formatDate(user.createdAt)}</div>
                       <div role="cell">
                         <span className={`admin-pill ${statusTone(user.status)}`}>{statusLabel(user.status)}</span>
@@ -745,5 +750,3 @@ const AdminUsers = () => {
 };
 
 export default AdminUsers;
-
-

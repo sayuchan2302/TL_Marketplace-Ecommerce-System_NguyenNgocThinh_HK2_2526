@@ -18,6 +18,11 @@ import java.util.UUID;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, UUID> {
+    interface UserSpendingProjection {
+        UUID getUserId();
+        BigDecimal getTotalSpent();
+    }
+
 
     interface ProductSalesProjection {
         UUID getProductId();
@@ -40,6 +45,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
     List<Order> findByUserIdAndParentOrderIsNullOrderByCreatedAtDesc(UUID userId);
+
+    @Query("""
+            SELECT o.user.id AS userId, COALESCE(SUM(o.total), 0) AS totalSpent
+            FROM Order o
+            WHERE o.parentOrder IS NULL
+              AND o.user.id IN :userIds
+              AND o.status = 'DELIVERED'
+            GROUP BY o.user.id
+            """)
+    List<UserSpendingProjection> calculateDeliveredSpendingByUserIds(@Param("userIds") List<UUID> userIds);
 
     List<Order> findByParentOrderIsNullOrderByCreatedAtDesc();
 

@@ -3,7 +3,7 @@
     44px
     minmax(240px, 2fr)
     minmax(120px, 0.9fr)
-    minmax(230px, 1.7fr)
+    minmax(150px, 1.1fr)
     minmax(112px, 0.9fr)
     minmax(144px, 1fr)
     minmax(170px, 1.15fr);
@@ -173,13 +173,28 @@
   line-height: 1.7;
 }
 
+.admin-pill.role-customer {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.admin-pill.role-vendor {
+  background: #ecfeff;
+  color: #0f766e;
+}
+
+.admin-pill.role-admin {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
 @media (max-width: 1280px) {
   .admin-table-row.users {
     grid-template-columns:
       40px
       minmax(220px, 1.8fr)
       minmax(110px, 0.85fr)
-      minmax(200px, 1.5fr)
+      minmax(132px, 1fr)
       minmax(104px, 0.85fr)
       minmax(132px, 0.95fr)
       minmax(160px, 1.1fr);

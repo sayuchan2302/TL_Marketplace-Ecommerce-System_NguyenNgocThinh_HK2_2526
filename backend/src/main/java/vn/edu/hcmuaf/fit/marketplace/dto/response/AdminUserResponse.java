@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import vn.edu.hcmuaf.fit.marketplace.entity.User;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -26,6 +27,7 @@ public class AdminUserResponse {
     private Integer height;
     private Integer weight;
     private Long loyaltyPoints;
+    private BigDecimal totalSpent;
     private String role;
     private String status;
     private Boolean isActive;

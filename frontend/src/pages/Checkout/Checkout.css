@@ -618,6 +618,13 @@
 }
 
 /* ---- Coupon Tickets ---- */
+.coupon-ticket-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--co-gray-900);
+  margin-top: 8px;
+}
+
 .coupon-ticket-scroll {
   display: flex;
   gap: 12px;
@@ -807,6 +814,12 @@
 
 .coupon-selected .ticket-info strong {
   color: var(--co-blue);
+}
+
+.coupon-selected .ticket-radio.checked {
+  background: var(--co-blue);
+  border-color: var(--co-blue);
+  color: var(--co-white);
 }
 
 .coupon-ticket:not(.coupon-selected):hover {

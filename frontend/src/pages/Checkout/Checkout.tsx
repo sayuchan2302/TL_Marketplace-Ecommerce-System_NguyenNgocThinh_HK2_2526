@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronRight, Check, Wallet, Loader2, Trash2, X, ChevronDown, Tag, AlertCircle, MapPin } from 'lucide-react';
+import { ChevronRight, Check, Loader2, Trash2, X, ChevronDown, Tag, AlertCircle, MapPin } from 'lucide-react';
 import './Checkout.css';
 import { useCart } from '../../contexts/CartContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -55,6 +55,7 @@ interface FormErrors {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FREE_SHIPPING_THRESHOLD = 500000;
 const DEFAULT_SHIPPING_FEE = 30000;
+const PENDING_VNPAY_RECONCILE_TTL_MS = 2 * 60 * 60 * 1000;
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -74,6 +75,7 @@ const Checkout = () => {
     address: '', province: '', district: '', ward: '', note: ''
   });
   const [saveAddressToBook, setSaveAddressToBook] = useState(true);
+  const [isAddressFromBook, setIsAddressFromBook] = useState(false);
 
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
@@ -208,6 +210,18 @@ const Checkout = () => {
         cancelled = true;
       };
     }
+    if (!pending.orderCode || pending.cartIds.length === 0) {
+      clearPendingVnpayCheckout();
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (Date.now() - pending.createdAt > PENDING_VNPAY_RECONCILE_TTL_MS) {
+      clearPendingVnpayCheckout();
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const reconcile = async () => {
       try {
@@ -221,8 +235,11 @@ const Checkout = () => {
           clearCartByMarker(pending.cartIds);
           clearPendingVnpayCheckout();
         }
-      } catch {
-        // keep marker for next app bootstrapping attempt
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof ApiError && error.status === 404) {
+          clearPendingVnpayCheckout();
+        }
       }
     };
 
@@ -357,6 +374,7 @@ const Checkout = () => {
   const savings = discount;
 
   const handleAddressSelect = (addr: Address) => {
+    setIsAddressFromBook(true);
     setFormValues(prev => ({
       ...prev,
       name: addr.fullName,
@@ -383,6 +401,9 @@ const Checkout = () => {
   };
 
   const handleFieldChange = (field: keyof FormErrors | 'email' | 'note', value: string) => {
+    if (field !== 'email' && field !== 'note' && isAddressFromBook) {
+      setIsAddressFromBook(false);
+    }
     setFormValues(prev => ({ ...prev, [field]: value }));
     if (formErrors[field as keyof FormErrors]) {
       setFormErrors(prev => ({ ...prev, [field]: undefined }));
@@ -477,7 +498,7 @@ const Checkout = () => {
           }
 
           if (!resolvedVariantId && activeVariantCount > 1) {
-            throw new Error(`San pham "${item.name}" chua chon dung mau/size. Vui long quay lai gio hang va chon lai bien the.`);
+            throw new Error(`Sản phẩm "${item.name}" chưa chọn đúng màu/size. Vui lòng quay lại giỏ hàng và chọn lại biến thể.`);
           }
 
           return {
@@ -561,8 +582,8 @@ const Checkout = () => {
       navigate(`/order-success?id=${backendOrder.code || backendOrder.id}`);
     } catch (error) {
       const message = (error instanceof ApiError && error.status === 404)
-        ? 'Mot hoac nhieu san pham khong con kha dung. Vui long xoa va them lai tu trang san pham.'
-        : (error instanceof Error ? error.message : 'Dat hang that bai. Vui long thu lai.');
+        ? 'Một hoặc nhiều sản phẩm không còn khả dụng. Vui lòng xóa và thêm lại từ trang sản phẩm.'
+        : (error instanceof Error ? error.message : 'Đặt hàng thất bại. Vui lòng thử lại.');
       addToast(message, 'error');
     } finally {
       setIsLoading(false);
@@ -753,15 +774,17 @@ const Checkout = () => {
                   </div>
                 </div>
 
-                <label className="save-address-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={saveAddressToBook}
-                    onChange={(e) => setSaveAddressToBook(e.target.checked)}
-                  />
-                  <MapPin size={16} />
-                  <span>Lưu vào sổ địa chỉ</span>
-                </label>
+                {!isAddressFromBook && (
+                  <label className="save-address-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={saveAddressToBook}
+                      onChange={(e) => setSaveAddressToBook(e.target.checked)}
+                    />
+                    <MapPin size={16} />
+                    <span>Lưu vào sổ địa chỉ</span>
+                  </label>
+                )}
 
               </section>
 
@@ -908,6 +931,7 @@ const Checkout = () => {
                 </div>
 
                 {/* Coupon Tickets */}
+                <div className="coupon-ticket-title">Kho mã giảm giá</div>
                 <div className="coupon-ticket-scroll" ref={couponScrollRef}>
                   {isCouponsFetching && (
                     <div className="coupon-ticket">
@@ -941,9 +965,6 @@ const Checkout = () => {
 
                 {/* Voucher Input */}
                 <div className="checkout-coupon-box">
-                  <button className="btn-wallet-voucher">
-                    <Wallet size={16} /> {t.walletVoucher}
-                  </button>
                   <div className="input-group-row">
                     <input
                       type="text"

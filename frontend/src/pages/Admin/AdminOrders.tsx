@@ -95,6 +95,13 @@ const formatPaymentMethod = (method: string) => {
   }
 };
 
+const paymentMethodPillClass = (method: string) => {
+  const normalized = (method || '').trim().toUpperCase();
+  if (normalized === 'MOMO') return 'payment-momo';
+  if (normalized === 'VNPAY') return 'payment-vnpay';
+  return 'neutral';
+};
+
 const tabs = [
   { key: 'all', label: 'Tất cả' },
   { key: 'pending', label: 'Chờ tiếp nhận' },
@@ -342,7 +349,7 @@ const AdminOrders = () => {
                   </div>
                   <div role="cell" className="admin-bold order-total">{order.total}</div>
                   <div role="cell">
-                    <span className="admin-pill neutral">
+                    <span className={`admin-pill ${paymentMethodPillClass(order.paymentMethod)}`}>
                       {formatPaymentMethod(order.paymentMethod)}
                     </span>
                   </div>
