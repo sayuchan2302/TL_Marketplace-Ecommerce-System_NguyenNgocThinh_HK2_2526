@@ -53,6 +53,7 @@ import { FilterProvider } from './contexts/FilterContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import LoadingSpinner from './components/LoadingSpinner/LoadingSpinner';
+import ChatWidget from './components/ChatWidget/ChatWidget';
 
 const MainLayout = () => {
   const location = useLocation();
@@ -66,6 +67,7 @@ const MainLayout = () => {
       {!isAdmin && !isVendorPortal && <Header />}
       <Outlet />
       {!isCheckout && !isAdmin && !isVendorPortal && <Footer />}
+      {!isCheckout && !isAdmin && !isVendorPortal && <ChatWidget />}
     </>
   );
 };

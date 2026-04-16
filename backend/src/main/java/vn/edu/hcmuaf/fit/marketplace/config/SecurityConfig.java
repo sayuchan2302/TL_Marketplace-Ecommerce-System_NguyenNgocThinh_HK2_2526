@@ -78,6 +78,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/payments/momo/return/verify").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/messages").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/api/messages").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/bot/token").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/api/bot/token").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()

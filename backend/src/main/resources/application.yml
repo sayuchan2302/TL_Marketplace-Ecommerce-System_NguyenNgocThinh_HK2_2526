@@ -45,6 +45,9 @@ app:
     enabled: ${APP_SEED_ENABLED:true}
   chatbot:
     ai-fallback-enabled: ${APP_CHATBOT_AI_FALLBACK_ENABLED:false}
+    direct-line-secret: ${BOT_DIRECT_LINE_SECRET:}
+    direct-line-token-endpoint: ${BOT_DIRECT_LINE_TOKEN_ENDPOINT:https://directline.botframework.com/v3/directline/tokens/generate}
+    direct-line-conversation-endpoint: ${BOT_DIRECT_LINE_CONVERSATION_ENDPOINT:https://directline.botframework.com/v3/directline/conversations}
   notifications:
     promotion:
       timezone: ${APP_PROMOTION_NOTIFICATION_TIMEZONE:Asia/Ho_Chi_Minh}
