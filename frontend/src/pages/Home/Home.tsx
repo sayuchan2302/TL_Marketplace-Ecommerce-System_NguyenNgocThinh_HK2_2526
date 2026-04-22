@@ -232,7 +232,18 @@ const Home = () => {
     [flashSaleProducts],
   );
 
-  const topVendors = useMemo(() => (allStores.length > 0 ? allStores : featuredStores), [allStores, featuredStores]);
+  const topVendors = useMemo(() => {
+    const source = allStores.length > 0 ? allStores : featuredStores;
+    return [...source]
+      .sort((a, b) => {
+        const orderDiff = (b.totalOrders || 0) - (a.totalOrders || 0);
+        if (orderDiff !== 0) return orderDiff;
+        const ratingDiff = (b.rating || 0) - (a.rating || 0);
+        if (ratingDiff !== 0) return ratingDiff;
+        return a.name.localeCompare(b.name, 'vi');
+      })
+      .slice(0, 4);
+  }, [allStores, featuredStores]);
 
   return (
     <div className="home-page">
