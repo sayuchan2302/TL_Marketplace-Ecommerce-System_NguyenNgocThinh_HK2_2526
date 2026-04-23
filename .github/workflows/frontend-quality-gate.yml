@@ -38,6 +38,9 @@ jobs:
       APP_SEED_GAP_CLEAN_BEFORE_IMPORT: "true"
       APP_CHATBOT_AI_FALLBACK_ENABLED: "false"
       AZURE_BOT_AUTH_ENABLED: "false"
+      MicrosoftAppId: "00000000-0000-0000-0000-000000000000"
+      MicrosoftAppPassword: "ci-dummy-secret"
+      MicrosoftAppTenantId: "00000000-0000-0000-0000-000000000000"
       VITE_API_URL: http://localhost:8080
       BASE_URL: http://localhost:5173
       CI: "true"
