@@ -1,11 +1,25 @@
-import { chromium } from 'playwright';
+﻿import { chromium } from 'playwright';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5173';
 const TIMEOUT = 15000;
 
+const requireEnv = (name) => {
+  const value = process.env[name];
+  if (!value || !value.trim()) {
+    throw new Error(`Missing required env var: ${name}`);
+  }
+  return value.trim();
+};
+
 const CREDENTIALS = {
-  admin: { email: 'admin@fashion.local', password: 'Test@123' },
-  vendor: { email: 'an.shop@fashion.local', password: 'Test@123' },
+  admin: {
+    email: requireEnv('SMOKE_ADMIN_EMAIL'),
+    password: requireEnv('SMOKE_ADMIN_PASSWORD'),
+  },
+  vendor: {
+    email: requireEnv('SMOKE_VENDOR_EMAIL'),
+    password: requireEnv('SMOKE_VENDOR_PASSWORD'),
+  },
 };
 
 const pass = (label, details = '') => console.log(`PASS ${label}${details ? ` -> ${details}` : ''}`);
@@ -50,7 +64,7 @@ async function loginAs(page, role) {
 
   await emailInput.fill(creds.email);
   await passwordInput.fill(creds.password);
-  await page.getByRole('button', { name: /Đăng nhập/i }).click();
+  await page.getByRole('button', { name: /đăng nhập|login/i }).first().click();
   await page.waitForURL('**/', { timeout: TIMEOUT });
   await page.waitForLoadState('networkidle');
 }
@@ -66,11 +80,11 @@ async function run() {
 
       await page.goto(BASE_URL, { waitUntil: 'networkidle', timeout: TIMEOUT });
       const homeHasCoreUI = await page.getByText(/COOLMATE/i).first().isVisible({ timeout: TIMEOUT }).catch(() => false);
-      assert(homeHasCoreUI, 'Home không render header/logo.');
+      assert(homeHasCoreUI, 'Home does not render header/logo.');
       pass('Home');
 
       const visibleProduct = await getFirstVisibleProductLink(page);
-      assert(visibleProduct, 'Không tìm thấy product link đang hiển thị ở Home.');
+      assert(visibleProduct, 'Cannot find any visible product link on Home.');
       const { link: firstProductLink, href: productHref } = visibleProduct;
 
       await firstProductLink.click();
@@ -78,21 +92,21 @@ async function run() {
       await page.waitForLoadState('networkidle');
 
       const productTitleVisible = await page.locator('h1').first().isVisible({ timeout: TIMEOUT }).catch(() => false);
-      assert(productTitleVisible, 'Product detail không hiển thị tên sản phẩm.');
+      assert(productTitleVisible, 'Product detail does not render title.');
 
-      const addToCartButton = page.getByRole('button', { name: /Thêm vào giỏ/i });
+      const addToCartButton = page.getByRole('button', { name: /thêm vào giỏ|add to cart/i });
       const addToCartVisible = await addToCartButton.isVisible({ timeout: 4000 }).catch(() => false);
       pass('Product Detail', productHref);
 
       if (addToCartVisible) {
         await addToCartButton.click();
       } else {
-        info('Cart setup', 'Không tìm thấy nút "Thêm vào giỏ", bỏ qua bước thêm sản phẩm.');
+        info('Cart setup', 'Add-to-cart button is not visible, skip add-to-cart step.');
       }
 
       await page.goto(`${BASE_URL}/cart`, { waitUntil: 'networkidle', timeout: TIMEOUT });
-      const cartVisible = await page.getByText(/Giỏ hàng|Thanh toán|Tạm tính/i).first().isVisible({ timeout: TIMEOUT }).catch(() => false);
-      assert(cartVisible, 'Cart page không render đúng sau khi thêm sản phẩm.');
+      const cartVisible = await page.getByText(/giỏ hàng|thanh toán|tạm tính|cart|checkout/i).first().isVisible({ timeout: TIMEOUT }).catch(() => false);
+      assert(cartVisible, 'Cart page does not render correctly.');
       pass('Cart');
 
       await context.close();
@@ -105,8 +119,8 @@ async function run() {
 
       await loginAs(page, 'admin');
       await page.goto(`${BASE_URL}/admin/categories`, { waitUntil: 'networkidle', timeout: TIMEOUT });
-      const categoriesVisible = await page.getByText(/Cây danh mục|Chi tiết danh mục|Danh mục/i).first().isVisible({ timeout: TIMEOUT }).catch(() => false);
-      assert(categoriesVisible, `Admin Categories không hiển thị nội dung mong đợi. URL hiện tại: ${page.url()}`);
+      const categoriesVisible = await page.getByText(/cây danh mục|chi tiết danh mục|danh mục|categories/i).first().isVisible({ timeout: TIMEOUT }).catch(() => false);
+      assert(categoriesVisible, `Admin Categories content not visible. Current URL: ${page.url()}`);
       pass('Admin Categories');
 
       await context.close();
@@ -119,8 +133,8 @@ async function run() {
 
       await loginAs(page, 'vendor');
       await page.goto(`${BASE_URL}/vendor/products`, { waitUntil: 'networkidle', timeout: TIMEOUT });
-      const productsVisible = await page.getByText(/Sản phẩm|Danh sách sản phẩm|Thêm sản phẩm/i).first().isVisible({ timeout: TIMEOUT }).catch(() => false);
-      assert(productsVisible, 'Vendor Products không render nội dung sản phẩm.');
+      const productsVisible = await page.getByText(/sản phẩm|danh sách sản phẩm|thêm sản phẩm|products/i).first().isVisible({ timeout: TIMEOUT }).catch(() => false);
+      assert(productsVisible, 'Vendor Products content not visible.');
       pass('Vendor Products');
 
       await context.close();

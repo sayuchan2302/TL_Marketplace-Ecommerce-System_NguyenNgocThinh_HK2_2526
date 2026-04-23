@@ -65,9 +65,11 @@ Create a PostgreSQL database:
 
 Backend reads config from:
 - `backend/.env` (already supported by `application.yml` import)
+- `backend/.env.example` (template, safe to commit)
 
 Frontend reads config from:
 - `frontend/.env`
+- `frontend/.env.example` (template, safe to commit)
 
 Minimum local variables:
 
@@ -76,6 +78,7 @@ Backend (`backend/.env`):
 DB_URL=jdbc:postgresql://localhost:5432/fashion-store
 DB_USERNAME=postgres
 DB_PASSWORD=your_password
+JWT_SECRET=your_long_random_secret
 
 APP_SEED_ENABLED=true
 APP_SEED_GAP_ENABLED=true
@@ -133,6 +136,7 @@ Important backend flags (from `application.yml`):
 | `APP_SEED_GAP_STYLES_PATH` | Path to `styles.csv` | `backend/src/main/resources/seeder/gap/styles.csv` |
 | `APP_SEED_GAP_IMAGES_PATH` | Path to `images.csv` | `backend/src/main/resources/seeder/gap/images.csv` |
 | `APP_SEED_GAP_CLEAN_BEFORE_IMPORT` | Clean previous `gap-*` batch before import | `true` |
+| `JWT_SECRET` | JWT signing secret (required) | _none_ |
 | `AZURE_BOT_AUTH_ENABLED` | Enable Azure bot auth | `false` |
 | `APP_CHATBOT_AI_FALLBACK_ENABLED` | Enable AI fallback | `false` |
 
@@ -167,6 +171,12 @@ npm run smoke --prefix frontend
 CI workflow:
 - `.github/workflows/frontend-quality-gate.yml`
 - Runs: backend startup + health check, frontend lint/build, preview, Playwright smoke.
+- Required repository secrets for smoke step:
+  - `CI_JWT_SECRET`
+  - `SMOKE_ADMIN_EMAIL`
+  - `SMOKE_ADMIN_PASSWORD`
+  - `SMOKE_VENDOR_EMAIL`
+  - `SMOKE_VENDOR_PASSWORD`
 
 ## Main API Areas
 - Auth: `/api/auth/*`

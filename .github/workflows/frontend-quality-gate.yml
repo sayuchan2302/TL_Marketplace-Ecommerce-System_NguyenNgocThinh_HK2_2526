@@ -19,7 +19,7 @@ jobs:
         env:
           POSTGRES_DB: fashion-store
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: 230204
+          POSTGRES_PASSWORD: ${{ secrets.CI_DB_PASSWORD || 'postgres' }}
         ports:
           - 5432:5432
         options: >-
@@ -31,16 +31,21 @@ jobs:
     env:
       DB_URL: jdbc:postgresql://localhost:5432/fashion-store
       DB_USERNAME: postgres
-      DB_PASSWORD: 230204
+      DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD || 'postgres' }}
+      JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
       APP_SEED_ENABLED: "true"
       APP_SEED_GAP_ENABLED: "true"
       APP_SEED_GAP_TARGET_COUNT: "300"
       APP_SEED_GAP_CLEAN_BEFORE_IMPORT: "true"
       APP_CHATBOT_AI_FALLBACK_ENABLED: "false"
       AZURE_BOT_AUTH_ENABLED: "false"
-      MicrosoftAppId: "00000000-0000-0000-0000-000000000000"
-      MicrosoftAppPassword: "ci-dummy-secret"
-      MicrosoftAppTenantId: "00000000-0000-0000-0000-000000000000"
+      MicrosoftAppId: ${{ secrets.CI_MICROSOFT_APP_ID || '00000000-0000-0000-0000-000000000000' }}
+      MicrosoftAppPassword: ${{ secrets.CI_MICROSOFT_APP_PASSWORD || 'ci-dummy-secret' }}
+      MicrosoftAppTenantId: ${{ secrets.CI_MICROSOFT_APP_TENANT_ID || '00000000-0000-0000-0000-000000000000' }}
+      SMOKE_ADMIN_EMAIL: ${{ secrets.SMOKE_ADMIN_EMAIL }}
+      SMOKE_ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+      SMOKE_VENDOR_EMAIL: ${{ secrets.SMOKE_VENDOR_EMAIL }}
+      SMOKE_VENDOR_PASSWORD: ${{ secrets.SMOKE_VENDOR_PASSWORD }}
       VITE_API_URL: http://localhost:8080
       BASE_URL: http://localhost:5173
       CI: "true"
@@ -73,6 +78,19 @@ jobs:
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+
+      - name: Validate required secrets
+        run: |
+          missing=0
+          for key in JWT_SECRET SMOKE_ADMIN_EMAIL SMOKE_ADMIN_PASSWORD SMOKE_VENDOR_EMAIL SMOKE_VENDOR_PASSWORD; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing required secret mapped to env ${key}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
 
       - name: Ensure Maven wrapper is executable
         run: chmod +x backend/mvnw
