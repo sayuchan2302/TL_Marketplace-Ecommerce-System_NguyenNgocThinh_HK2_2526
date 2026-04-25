@@ -375,6 +375,8 @@ const resolveVendorProductName = (order: BackendVendorOrderSummary): string => {
 
 const mapOrderSummary = (order: BackendVendorOrderSummary): VendorOrderSummary => {
   const total = Number(order.total || 0);
+  const normalizedProductImage = getOptimizedImageUrl(order.productImage || FALLBACK_IMAGE, { width: 96, format: 'webp' })
+    || FALLBACK_IMAGE;
 
   return {
     id: order.id,
@@ -387,11 +389,11 @@ const mapOrderSummary = (order: BackendVendorOrderSummary): VendorOrderSummary =
     items: Number(order.itemCount || 0),
     commissionFee: Number(order.commissionFee ?? 0),
     vendorPayout: Number(order.vendorPayout ?? 0),
-    thumb: FALLBACK_IMAGE,
+    thumb: normalizedProductImage,
     productName: resolveVendorProductName(order),
     productMeta: order.productMeta || '',
     productExtra: order.productExtra || null,
-    productImage: order.productImage || FALLBACK_IMAGE,
+    productImage: normalizedProductImage,
   };
 };
 

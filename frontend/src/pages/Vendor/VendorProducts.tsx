@@ -51,9 +51,8 @@ interface ProductFormState {
   stock: number;
   images: string[];
   description: string;
-  material: string;
-  highlights: string;
-  careInstructions: string;
+  sizeAndFit: string;
+  fabricAndCare: string;
   gender: string;
   fit: string;
   visible: boolean;
@@ -163,9 +162,8 @@ const emptyForm = (): ProductFormState => ({
   stock: 0,
   images: [],
   description: '',
-  material: '',
-  highlights: '',
-  careInstructions: '',
+  sizeAndFit: '',
+  fabricAndCare: '',
   gender: '',
   fit: '',
   visible: true,
@@ -584,13 +582,12 @@ const normalizeVariantRowsForSave = (rows: VariantRowFormState[]) => rows.map((r
       basePrice: current.basePrice ?? current.price ?? 0,
       salePrice: current.salePrice ?? 0,
       stock: current.stock,
-      highlights: current.highlights || '',
-      careInstructions: current.careInstructions || '',
+      sizeAndFit: current.sizeAndFit || current.highlights || '',
+      fabricAndCare: current.fabricAndCare || current.careInstructions || current.material || '',
       gender: current.gender || '',
       fit: current.fit || '',
       images: current.images && current.images.length > 0 ? [...current.images] : (current.image ? [current.image] : []),
       description: current.description,
-      material: current.material,
       visible: current.visible,
     });
     const usedKeys = new Set<string>();
@@ -677,9 +674,8 @@ const normalizeVariantRowsForSave = (rows: VariantRowFormState[]) => rows.map((r
       ...productForm,
       name: productForm.name.trim(),
       description: productForm.description.trim(),
-      highlights: productForm.highlights.trim(),
-      material: productForm.material.trim(),
-      careInstructions: productForm.careInstructions.trim(),
+      sizeAndFit: productForm.sizeAndFit.trim(),
+      fabricAndCare: productForm.fabricAndCare.trim(),
       gender: productForm.gender,
       fit: productForm.fit,
       images: productForm.images
@@ -709,8 +705,8 @@ const normalizeVariantRowsForSave = (rows: VariantRowFormState[]) => rows.map((r
           stock: normalizedForm.stock,
           images: normalizedForm.images,
           description: normalizedForm.description,
-          highlights: normalizedForm.highlights,
-          careInstructions: normalizedForm.careInstructions,
+          sizeAndFit: normalizedForm.sizeAndFit,
+          fabricAndCare: normalizedForm.fabricAndCare,
           gender: normalizedForm.gender,
           fit: normalizedForm.fit,
           visible: normalizedForm.visible,
@@ -726,8 +722,8 @@ const normalizeVariantRowsForSave = (rows: VariantRowFormState[]) => rows.map((r
           stock: normalizedForm.stock,
           images: normalizedForm.images,
           description: normalizedForm.description,
-          highlights: normalizedForm.highlights,
-          careInstructions: normalizedForm.careInstructions,
+          sizeAndFit: normalizedForm.sizeAndFit,
+          fabricAndCare: normalizedForm.fabricAndCare,
           gender: normalizedForm.gender,
           fit: normalizedForm.fit,
           visible: normalizedForm.visible,
@@ -1295,33 +1291,24 @@ const normalizeVariantRowsForSave = (rows: VariantRowFormState[]) => rows.map((r
 
             <div className="vendor-product-category-grid">
               <label className="form-field">
-                <span>Chất liệu</span>
-                <input
-                  value={productForm.material}
-                  onChange={(event) => setProductForm((current) => ({ ...current, material: event.target.value }))}
-                  placeholder="Ví dụ: Cotton 100%, Denim..."
+                <span>Kích cỡ & kiểu dáng</span>
+                <textarea
+                  rows={4}
+                  value={productForm.sizeAndFit}
+                  onChange={(event) => setProductForm((current) => ({ ...current, sizeAndFit: event.target.value }))}
+                  placeholder="Ví dụ: Form regular fit, tay dài, phù hợp cao 1m60-1m80."
                 />
               </label>
               <label className="form-field">
-                <span>Đặc điểm nổi bật</span>
+                <span>Chất liệu & hướng dẫn bảo quản</span>
                 <textarea
-                  rows={3}
-                  value={productForm.highlights}
-                  onChange={(event) => setProductForm((current) => ({ ...current, highlights: event.target.value }))}
-                  placeholder="Mỗi dòng là một điểm nổi bật của sản phẩm"
+                  rows={4}
+                  value={productForm.fabricAndCare}
+                  onChange={(event) => setProductForm((current) => ({ ...current, fabricAndCare: event.target.value }))}
+                  placeholder="Ví dụ: 100% cotton. Giặt mát, không tẩy, ủi nhiệt độ thấp."
                 />
               </label>
             </div>
-
-            <label className="form-field full">
-              <span>Hướng dẫn bảo quản</span>
-              <textarea
-                rows={3}
-                value={productForm.careInstructions}
-                onChange={(event) => setProductForm((current) => ({ ...current, careInstructions: event.target.value }))}
-                placeholder="Mỗi dòng là một hướng dẫn bảo quản"
-              />
-            </label>
           </section>
 
         </div>

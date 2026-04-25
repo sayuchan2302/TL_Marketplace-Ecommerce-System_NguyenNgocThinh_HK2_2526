@@ -341,17 +341,20 @@ const toRequestPayload = (
   if (normalizedImages.length === 0 && normalizedImage) {
     normalizedImages.push(normalizedImage);
   }
+  const normalizedSizeAndFit = normalizeText(input.sizeAndFit || input.highlights);
+  const normalizedFabricAndCare = normalizeText(input.fabricAndCare)
+    || [normalizeText(input.material), normalizeText(input.careInstructions)].filter(Boolean).join('\n');
+  const normalizedMaterial = normalizeText(input.material);
 
   return {
     name: normalizedName,
     slug: normalizedSlug,
     description: normalizeText(input.description),
-    sizeAndFit: normalizeText(input.sizeAndFit || input.highlights),
-    fabricAndCare: normalizeText(input.fabricAndCare)
-      || [normalizeText(input.material), normalizeText(input.careInstructions)].filter(Boolean).join('\n'),
-    highlights: normalizeText(input.highlights),
-    material: normalizeText(input.material),
-    careInstructions: normalizeText(input.careInstructions),
+    sizeAndFit: normalizedSizeAndFit,
+    fabricAndCare: normalizedFabricAndCare,
+    highlights: normalizedSizeAndFit,
+    material: normalizedMaterial,
+    careInstructions: normalizedFabricAndCare,
     categoryId: isUuid(input.categoryId) ? input.categoryId : undefined,
     basePrice: Math.max(0, Number(input.basePrice ?? input.price ?? 0)),
     salePrice: Math.max(0, Number(input.salePrice ?? 0)),

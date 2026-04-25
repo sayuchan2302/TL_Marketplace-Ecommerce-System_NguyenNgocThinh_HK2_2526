@@ -372,17 +372,17 @@ const VendorOrders = () => {
     if (ids.length === 0) return;
     const note = window.prompt('Nhập lý do chậm xử lý / giao hàng');
     if (!note || !note.trim()) {
-      addToast('Cần nhập lý do để gửi cảnh báo delay.', 'error');
+      addToast('Cần nhập lý do để gửi cảnh báo trễ đơn.', 'error');
       return;
     }
 
     setUpdating(true);
     try {
       await Promise.all(ids.map((id) => vendorPortalService.notifyDelay(id, note.trim())));
-      addToast('Đã gửi ghi chú delay cho đơn hàng đã chọn.', 'success');
+      addToast('Đã gửi ghi chú trễ đơn cho các đơn đã chọn.', 'success');
       await loadOrders();
     } catch (err: unknown) {
-      addToast(getUiErrorMessage(err, 'Không thể gửi ghi chú delay'), 'error');
+      addToast(getUiErrorMessage(err, 'Không thể gửi ghi chú trễ đơn'), 'error');
     } finally {
       setUpdating(false);
     }
@@ -520,9 +520,18 @@ const VendorOrders = () => {
                         <div className="admin-muted small">{order.email}</div>
                       </div>
                       <div className="order-product-cell">
-                        <p className="admin-bold order-product-name">{order.productName}</p>
-                        <p className="admin-muted order-product-meta">{order.productMeta}</p>
-                        {order.productExtra ? <p className="order-product-extra">{order.productExtra}</p> : null}
+                        <img
+                          src={order.productImage || order.thumb}
+                          alt={order.productName || 'Sản phẩm'}
+                          className="vendor-admin-thumb"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <div className="order-product-copy">
+                          <p className="admin-bold order-product-name">{order.productName}</p>
+                          <p className="admin-muted order-product-meta">{order.productMeta}</p>
+                          {order.productExtra ? <p className="order-product-extra">{order.productExtra}</p> : null}
+                        </div>
                       </div>
                       <div className="admin-bold">{formatCurrency(order.total)}</div>
                       <div>
@@ -597,7 +606,7 @@ const VendorOrders = () => {
                         {(order.status === 'pending' || order.status === 'confirmed' || order.status === 'processing' || order.status === 'shipped') ? (
                           <button
                             className="admin-icon-btn subtle"
-                            title="Notify delay"
+                            title="Báo đơn trễ"
                             onClick={() => void handleNotifyDelay([order.id])}
                             disabled={updating}
                           >
