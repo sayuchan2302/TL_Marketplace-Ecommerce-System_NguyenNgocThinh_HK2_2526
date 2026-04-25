@@ -680,7 +680,7 @@ const Profile = () => {
               {/* Login Info */}
               <div className="info-group mt-10">
                 <div className="profile-content-header mb-6">
-                  <h3 className="profile-content-title">Thông tin đăng nhập</h3>
+                  <h3 className="profile-content-title" style={{ color: '#000000' }}>Thông tin đăng nhập</h3>
                 </div>
                 <div className="info-row">
                   <span className="info-label text-gray-500">Email</span>

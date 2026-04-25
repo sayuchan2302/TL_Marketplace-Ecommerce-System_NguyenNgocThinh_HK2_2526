@@ -309,9 +309,6 @@ const Home = () => {
                     </span>
                     <h2>{'Nh\u00e0 b\u00e1n n\u1ed5i b\u1eadt tr\u00ean s\u00e0n'}</h2>
                   </div>
-                  <Link to="/search?scope=stores" className="top-vendor-view-all">
-                    {'Xem t\u1ea5t c\u1ea3'}
-                  </Link>
                 </div>
 
                 <div className="top-vendor-grid">

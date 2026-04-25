@@ -97,6 +97,62 @@
   font-weight: 500;
 }
 
+.store-info-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.store-info-follow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 122px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.16);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.store-info-follow-btn:hover:not(:disabled) {
+  border-color: #93c5fd;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(37, 99, 235, 0.22);
+}
+
+.store-info-follow-btn.is-following {
+  border-color: transparent;
+  background: linear-gradient(135deg, #2563eb, #1e40af);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.34);
+}
+
+.store-info-follow-btn.is-following:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d4ed8, #1e3a8a);
+}
+
+.store-info-follow-btn:disabled {
+  opacity: 0.68;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 /* Visit Store Button */
 .store-info-visit-btn {
   display: inline-flex;
@@ -151,6 +207,10 @@
   color: #3b82f6;
 }
 
+.store-info-stat-icon.followers {
+  color: #2563eb;
+}
+
 .store-info-stat-value {
   font-size: 14px;
   font-weight: 800;
@@ -178,6 +238,14 @@
     gap: 12px;
   }
 
+  .store-info-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .store-info-follow-btn,
   .store-info-visit-btn {
     width: 100%;
     justify-content: center;
