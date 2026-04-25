@@ -32,7 +32,6 @@ const ReviewModal = ({ isOpen, onClose, product, existingReview }: ReviewModalPr
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rating, setRating] = useState(existingReview?.rating || 0);
   const [hoverRating, setHoverRating] = useState(0);
-  const [title, setTitle] = useState(existingReview?.title || '');
   const [content, setContent] = useState(existingReview?.content || '');
   const [images, setImages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,7 +64,6 @@ const ReviewModal = ({ isOpen, onClose, product, existingReview }: ReviewModalPr
         productImage: product.productImage,
         orderId: product.orderId,
         rating,
-        title: title || undefined,
         content,
         images: images.length > 0 ? images : undefined,
       };
@@ -192,18 +190,6 @@ const ReviewModal = ({ isOpen, onClose, product, existingReview }: ReviewModalPr
           </div>
 
           <div className="review-modal-form">
-            <div className="review-form-group">
-              <label className="review-modal-label">{t.titleLabel}</label>
-              <input
-                type="text"
-                className="review-input"
-                placeholder={t.titlePlaceholder}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                maxLength={100}
-              />
-            </div>
-
             <div className="review-form-group">
               <label className="review-modal-label">{t.contentLabel} <span className="required">{t.contentRequired}</span></label>
               <textarea

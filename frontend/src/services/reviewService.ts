@@ -1,6 +1,10 @@
 import { apiRequest, hasBackendJwt } from './apiClient';
 import { authService } from './authService';
 
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const ABSOLUTE_URL_PATTERN = /^(?:https?:)?\/\//i;
+const DATA_IMAGE_PATTERN = /^data:image\//i;
+
 export type ReviewStatus = 'pending' | 'approved' | 'hidden';
 
 export interface Review {
@@ -109,6 +113,21 @@ export interface VendorReviewSummary {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const resolveImageUrl = (value?: string | null): string => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+
+  if (ABSOLUTE_URL_PATTERN.test(normalized) || DATA_IMAGE_PATTERN.test(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.startsWith('/')) {
+    return API_BASE ? `${API_BASE}${normalized}` : normalized;
+  }
+
+  return API_BASE ? `${API_BASE}/${normalized}` : normalized;
+};
+
 const sortByNewest = (rows: Review[]) =>
   [...rows].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
 
@@ -127,13 +146,13 @@ const mapBackendReview = (row: BackendReviewResponse): Review => {
     productId: row.productId || '',
     productSlug: row.productSlug || undefined,
     productName: row.productName || 'Sản phẩm',
-    productImage: row.productImage || '',
+    productImage: resolveImageUrl(row.productImage),
     orderId: row.orderId || '',
     orderCode: row.orderCode || undefined,
     rating: Number(row.rating || 0),
     title: undefined,
     content: row.content || '',
-    images: row.images || [],
+    images: (row.images || []).map(resolveImageUrl).filter(Boolean),
     createdAt,
     updatedAt: createdAt,
     helpful: 0,
@@ -154,7 +173,7 @@ const mapBackendEligibleReview = (row: BackendEligibleReviewItem): EligibleRevie
   productId: String(row.productId || ''),
   productSlug: row.productSlug || undefined,
   productName: row.productName || 'Sản phẩm',
-  productImage: row.productImage || '',
+  productImage: resolveImageUrl(row.productImage),
   variantName: row.variantName || '',
   quantity: Number(row.quantity || 0),
   deliveredAt: row.deliveredAt,
@@ -315,7 +334,7 @@ export const reviewService = {
     if (!url) {
       throw new Error('Không nhận được URL ảnh review sau khi tải lên.');
     }
-    return url;
+    return resolveImageUrl(url);
   },
 
   async hasReviewed(productId: string, orderId: string): Promise<boolean> {
