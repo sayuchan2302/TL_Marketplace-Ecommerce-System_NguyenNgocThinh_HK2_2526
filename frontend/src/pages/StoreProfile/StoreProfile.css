@@ -572,10 +572,14 @@
 
 .storefront-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--space-4);
   margin-top: var(--space-4);
   contain: layout paint;
+}
+
+.storefront-grid .grid-item {
+  min-width: 0;
 }
 
 .storefront-page-summary {

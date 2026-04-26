@@ -15,7 +15,6 @@ import { customerVoucherService } from '../../services/customerVoucherService';
 import { reviewService, type Review } from '../../services/reviewService';
 import { storeFollowService } from '../../services/storeFollowService';
 import { ApiError, hasBackendJwt } from '../../services/apiClient';
-import { useCart } from '../../contexts/CartContext';
 import { useToast } from '../../contexts/ToastContext';
 import {
   BrowseTabContent,
@@ -24,7 +23,6 @@ import {
   ReviewsTabContent,
   StorefrontTabPanel,
   type PaginationToken,
-  type QuickAddItem,
 } from './components/StoreProfileTabSections';
 import './StoreProfile.css';
 
@@ -36,10 +34,10 @@ type IdleCapableWindow = Window & typeof globalThis & {
 };
 
 const TAB_ITEMS: Array<{ id: StoreTab; label: string }> = [
-  { id: 'browse', label: 'Dạo' },
-  { id: 'products', label: 'Tất cả sản phẩm' },
-  { id: 'categories', label: 'Danh mục' },
-  { id: 'reviews', label: 'Đánh giá' },
+  { id: 'browse', label: 'D\u1EA1o' },
+  { id: 'products', label: 'T\u1EA5t c\u1EA3 s\u1EA3n ph\u1EA9m' },
+  { id: 'categories', label: 'Danh m\u1EE5c' },
+  { id: 'reviews', label: '\u0110\u00E1nh gi\u00E1' },
 ];
 
 const EMPTY_PANEL_HEIGHTS: PanelHeightMap = {
@@ -149,7 +147,6 @@ const StoreProfilePage = () => {
     reviews: null,
   });
 
-  const { addToCart } = useCart();
   const { addToast } = useToast();
 
   const setPanelNode = useCallback((tab: StoreTab, node: HTMLDivElement | null) => {
@@ -180,23 +177,6 @@ const StoreProfilePage = () => {
     setFollowerCount(0);
     setIsFollowing(false);
   }, []);
-
-  const handleQuickAdd = useCallback((item: QuickAddItem) => {
-    addToCart({
-      id: String(item.id),
-      backendProductId: item.backendId,
-      backendVariantId: undefined,
-      name: item.name,
-      price: item.price,
-      originalPrice: item.originalPrice,
-      image: item.image,
-      color: 'Mặc định',
-      size: 'F',
-      storeId: item.storeId || 'default-store',
-      storeName: item.storeName || 'Cửa hàng',
-      isOfficialStore: item.isOfficialStore || false,
-    });
-  }, [addToCart]);
 
   useEffect(() => {
     if (!slug) return;
@@ -407,12 +387,12 @@ const StoreProfilePage = () => {
         next.add(voucherId);
         return next;
       });
-      addToast(`Đã nhận voucher ${voucher.code}`, 'success');
+      addToast(`\u0110\u00E3 nh\u1EADn voucher ${voucher.code}`, 'success');
     } catch (error) {
       const message = error instanceof ApiError
         ? error.message
-        : (error instanceof Error ? error.message : 'Không thể nhận voucher lúc này.');
-      addToast(message || 'Không thể nhận voucher lúc này.', 'error');
+        : (error instanceof Error ? error.message : 'Kh\u00F4ng th\u1EC3 nh\u1EADn voucher l\u00FAc n\u00E0y.');
+      addToast(message || 'Kh\u00F4ng th\u1EC3 nh\u1EADn voucher l\u00FAc n\u00E0y.', 'error');
     } finally {
       setClaimingVoucherId((current) => (current === voucherId ? null : current));
     }
@@ -451,12 +431,50 @@ const StoreProfilePage = () => {
     }
   };
 
+  const contactAction = useMemo(() => {
+    const phone = String(store?.phone || '').trim();
+    if (phone) {
+      return {
+        href: `tel:${phone.replace(/\s+/g, '')}`,
+        label: 'G\u1ECDi shop',
+      };
+    }
+
+    const email = String(store?.contactEmail || '').trim();
+    if (email) {
+      return {
+        href: `mailto:${email}`,
+        label: 'Email shop',
+      };
+    }
+
+    return null;
+  }, [store?.contactEmail, store?.phone]);
+
+  const handleContactStore = useCallback(() => {
+    if (!contactAction || typeof window === 'undefined') return;
+    window.location.href = contactAction.href;
+  }, [contactAction]);
+
   const handleTabChange = (tab: StoreTab) => {
     if (tab === activeTab) return;
     startTabTransition(() => {
       setActiveTab(tab);
     });
   };
+
+  const scrollToProductsPanelTop = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const productsPanel = panelNodesRef.current.products;
+    if (!productsPanel) return;
+
+    const headerOffset = 96;
+    const targetTop = productsPanel.getBoundingClientRect().top + window.scrollY - headerOffset;
+    window.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior: 'smooth',
+    });
+  }, []);
 
   const handleProductPageChange = useCallback(async (nextPage: number) => {
     if (!store?.id || productPageLoading || nextPage === productPage) return;
@@ -467,6 +485,7 @@ const StoreProfilePage = () => {
     paginationRequestRef.current = requestId;
 
     setProductPageLoading(true);
+    scrollToProductsPanelTop();
     try {
       const response = await storeService.getStoreProducts(storeId, nextPage, PRODUCTS_PAGE_SIZE);
       if (storeRequestRef.current !== storeRequestId || paginationRequestRef.current !== requestId) return;
@@ -481,9 +500,9 @@ const StoreProfilePage = () => {
         setProductPageLoading(false);
       }
     }
-  }, [productPage, productPageLoading, store?.id]);
+  }, [productPage, productPageLoading, scrollToProductsPanelTop, store?.id]);
 
-  const onlineLabel = store?.status === 'ACTIVE' ? 'Đang online' : 'Tạm offline';
+  const onlineLabel = store?.status === 'ACTIVE' ? '\u0110ang online' : 'T\u1EA1m offline';
 
   const topSellingProducts = useMemo(
     () => [...featuredProducts].sort((a, b) => Number(b.soldCount || 0) - Number(a.soldCount || 0)).slice(0, 8),
@@ -493,7 +512,7 @@ const StoreProfilePage = () => {
   const groupedByCategory = useMemo(() => {
     const groups = new Map<string, StoreProduct[]>();
     for (const product of categoryProducts || []) {
-      const key = product.categoryName || 'Danh mục khác';
+      const key = product.categoryName || 'Danh m\u1EE5c kh\u00E1c';
       const bucket = groups.get(key) || [];
       bucket.push(product);
       groups.set(key, bucket);
@@ -510,7 +529,7 @@ const StoreProfilePage = () => {
     return (
       <div className="storefront-state-page">
         <div className="storefront-loader" />
-        <p>Đang tải thông tin cửa hàng...</p>
+        <p>\u0110ang t\u1EA3i th\u00F4ng tin c\u1EEDa h\u00E0ng...</p>
       </div>
     );
   }
@@ -519,11 +538,11 @@ const StoreProfilePage = () => {
     return (
       <div className="storefront-state-page">
         <div className="storefront-not-found">
-          <h2>Cửa hàng không tồn tại</h2>
-          <p>Liên kết có thể đã hết hiệu lực hoặc cửa hàng chưa được công khai.</p>
+          <h2>C\u1EEDa h\u00E0ng kh\u00F4ng t\u1ED3n t\u1EA1i</h2>
+          <p>Li\u00EAn k\u1EBFt c\u00F3 th\u1EC3 \u0111\u00E3 h\u1EBFt hi\u1EC7u l\u1EF1c ho\u1EB7c c\u1EEDa h\u00E0ng ch\u01B0a \u0111\u01B0\u1EE3c c\u00F4ng khai.</p>
           <Link to="/" className="storefront-primary-btn">
             <ChevronLeft size={16} />
-            Quay về trang chủ
+            Quay v\u1EC1 trang ch\u1EE7
           </Link>
         </div>
       </div>
@@ -561,7 +580,7 @@ const StoreProfilePage = () => {
                     </span>
                   </div>
                   <p className="storefront-description">
-                    {store.description || 'Cửa hàng đối tác chính thức trên marketplace.'}
+                    {store.description || 'C\u1EEDa h\u00E0ng \u0111\u1ED1i t\u00E1c ch\u00EDnh th\u1EE9c tr\u00EAn marketplace.'}
                   </p>
                   {store.contactEmail || store.phone || store.address ? (
                     <div className="storefront-public-contact">
@@ -592,16 +611,17 @@ const StoreProfilePage = () => {
                       onClick={handleToggleFollow}
                       disabled={followSubmitting}
                     >
-                      {followSubmitting ? 'Đang xử lý...' : isFollowing ? 'Đã theo dõi' : 'Theo dõi'}
+                      {followSubmitting ? '\u0110ang x\u1EED l\u00FD...' : isFollowing ? '\u0110\u00E3 theo d\u00F5i' : 'Theo d\u00F5i'}
                     </button>
                     <button
                       type="button"
-                      className="storefront-secondary-btn storefront-secondary-btn-disabled"
-                      disabled
-                      title="Tính năng chat sẽ được cập nhật sau"
+                      className={`storefront-secondary-btn ${contactAction ? '' : 'storefront-secondary-btn-disabled'}`}
+                      disabled={!contactAction}
+                      onClick={handleContactStore}
+                      title={contactAction ? undefined : 'C\u1EEDa h\u00E0ng ch\u01B0a c\u1EADp nh\u1EADt th\u00F4ng tin li\u00EAn h\u1EC7'}
                     >
                       <MessageCircle size={16} />
-                      Chat (Sắp ra mắt)
+                      {contactAction ? contactAction.label : 'Ch\u01B0a c\u00F3 li\u00EAn h\u1EC7'}
                     </button>
                   </div>
                 </div>
@@ -618,21 +638,21 @@ const StoreProfilePage = () => {
                 <article className="storefront-metric-card">
                   <p>
                     <MessageCircle size={14} />
-                    Tỷ lệ phản hồi
+                    T\u1EF7 l\u1EC7 ph\u1EA3n h\u1ED3i
                   </p>
                   <strong>{formatPercent(store.responseRate)}</strong>
                 </article>
                 <article className="storefront-metric-card">
                   <p>
                     <Users size={14} />
-                    Người theo dõi
+                    Ng\u01B0\u1EDDi theo d\u00F5i
                   </p>
                   <strong>{formatShortNumber(followerCount)}</strong>
                 </article>
                 <article className="storefront-metric-card">
                   <p>
                     <ShoppingBag size={14} />
-                    Đơn hàng
+                    \u0110\u01A1n h\u00E0ng
                   </p>
                   <strong>{formatShortNumber(Number(store.totalOrders || 0))}</strong>
                 </article>
@@ -668,7 +688,6 @@ const StoreProfilePage = () => {
                 storeName={store.name}
                 bannerUrl={store.banner || PLACEHOLDER_BANNER}
                 topSellingProducts={topSellingProducts}
-                onQuickAdd={handleQuickAdd}
               />
             </StorefrontTabPanel>
 
@@ -681,7 +700,6 @@ const StoreProfilePage = () => {
                 productPageLoading={productPageLoading}
                 paginationTokens={paginationTokens}
                 storeName={store.name}
-                onQuickAdd={handleQuickAdd}
                 onPageChange={(nextPage) => {
                   void handleProductPageChange(nextPage);
                 }}
@@ -706,3 +724,4 @@ const StoreProfilePage = () => {
 };
 
 export default StoreProfilePage;
+

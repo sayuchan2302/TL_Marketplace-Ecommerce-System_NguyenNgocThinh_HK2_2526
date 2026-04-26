@@ -1,4 +1,4 @@
-import { memo, type ComponentProps, type ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { Star, TicketPercent } from 'lucide-react';
 import ProductCard from '../../../components/ProductCard/ProductCard';
 import type { Coupon } from '../../../services/couponService';
@@ -7,22 +7,18 @@ import type { StoreProduct } from '../../../services/storeService';
 
 export type PaginationToken = number | 'ellipsis-left' | 'ellipsis-right';
 
-export type QuickAddItem = Parameters<NonNullable<ComponentProps<typeof ProductCard>['onQuickAdd']>>[0];
-
-const formatCurrency = (value: number) => `${Math.max(0, Number(value || 0)).toLocaleString('vi-VN')}đ`;
+const formatCurrency = (value: number) => `${Math.max(0, Number(value || 0)).toLocaleString('vi-VN')}\u0111`;
 
 const getProductLink = (product: StoreProduct) => product.slug || product.sku || String(product.id);
 
 interface StoreProductCardProps {
   product: StoreProduct;
   storeName: string;
-  onQuickAdd?: (item: QuickAddItem) => void;
 }
 
 interface StorefrontProductGridProps {
   rows: StoreProduct[];
   storeName: string;
-  onQuickAdd?: (item: QuickAddItem) => void;
   emptyMessage?: string;
 }
 
@@ -35,7 +31,6 @@ export interface BrowseTabContentProps {
   storeName: string;
   bannerUrl: string;
   topSellingProducts: StoreProduct[];
-  onQuickAdd?: (item: QuickAddItem) => void;
 }
 
 export interface ProductsTabContentProps {
@@ -46,7 +41,6 @@ export interface ProductsTabContentProps {
   productPageLoading: boolean;
   paginationTokens: PaginationToken[];
   storeName: string;
-  onQuickAdd?: (item: QuickAddItem) => void;
   onPageChange: (nextPage: number) => void;
 }
 
@@ -65,7 +59,7 @@ export interface StorefrontTabPanelProps {
   children: ReactNode;
 }
 
-const StoreProductCard = memo(({ product, storeName, onQuickAdd }: StoreProductCardProps) => (
+const StoreProductCard = memo(({ product, storeName }: StoreProductCardProps) => (
   <ProductCard
     id={getProductLink(product)}
     sku={product.sku}
@@ -82,7 +76,6 @@ const StoreProductCard = memo(({ product, storeName, onQuickAdd }: StoreProductC
     storeName={product.storeName || storeName}
     storeSlug={product.storeSlug}
     isOfficialStore={product.isOfficialStore}
-    onQuickAdd={onQuickAdd}
   />
 ));
 StoreProductCard.displayName = 'StoreProductCard';
@@ -90,8 +83,7 @@ StoreProductCard.displayName = 'StoreProductCard';
 const StorefrontProductGrid = memo(({
   rows,
   storeName,
-  onQuickAdd,
-  emptyMessage = 'Hiện chưa có sản phẩm công khai.',
+  emptyMessage = 'Hi\u1ec7n ch\u01b0a c\u00f3 s\u1ea3n ph\u1ea9m c\u00f4ng khai.',
 }: StorefrontProductGridProps) => {
   if (rows.length === 0) {
     return <p className="storefront-empty">{emptyMessage}</p>;
@@ -100,12 +92,9 @@ const StorefrontProductGrid = memo(({
   return (
     <div className="storefront-grid">
       {rows.map((product) => (
-        <StoreProductCard
-          key={`${product.id}-${product.sku}`}
-          product={product}
-          storeName={storeName}
-          onQuickAdd={onQuickAdd}
-        />
+        <div key={`${product.id}-${product.sku}`} className="grid-item">
+          <StoreProductCard product={product} storeName={storeName} />
+        </div>
       ))}
     </div>
   );
@@ -121,13 +110,12 @@ export const BrowseTabContent = memo(({
   storeName,
   bannerUrl,
   topSellingProducts,
-  onQuickAdd,
 }: BrowseTabContentProps) => (
   <>
     <div className="storefront-panel">
-      <h2>Voucher cửa hàng</h2>
+      <h2>Voucher c\u1eeda h\u00e0ng</h2>
       {vouchers.length === 0 ? (
-        <p className="storefront-empty">Hiện chưa có voucher công khai cho gian hàng này.</p>
+        <p className="storefront-empty">Hi\u1ec7n ch\u01b0a c\u00f3 voucher c\u00f4ng khai cho gian h\u00e0ng n\u00e0y.</p>
       ) : (
         <div className="storefront-voucher-list">
           {vouchers.slice(0, 10).map((voucher) => {
@@ -135,12 +123,12 @@ export const BrowseTabContent = memo(({
             const isClaimed = voucherId ? claimedVoucherIds.has(voucherId) : false;
             const isClaiming = voucherId !== '' && claimingVoucherId === voucherId;
             const claimLabel = !isAuthenticated
-              ? 'Đăng nhập để nhận'
+              ? '\u0110\u0103ng nh\u1eadp \u0111\u1ec3 nh\u1eadn'
               : isClaiming
-                ? 'Đang nhận...'
+                ? '\u0110ang nh\u1eadn...'
                 : isClaimed
-                  ? 'Đã nhận'
-                  : 'Nhận';
+                  ? '\u0110\u00e3 nh\u1eadn'
+                  : 'Nh\u1eadn';
 
             return (
               <article key={voucher.id || voucher.code} className="storefront-voucher">
@@ -151,11 +139,11 @@ export const BrowseTabContent = memo(({
                     <p className="storefront-voucher-code">{voucher.code}</p>
                     <p className="storefront-voucher-text">
                       {voucher.type === 'percent'
-                        ? `Giảm ${voucher.value}%`
-                        : `Giảm ${formatCurrency(voucher.value)}`}
+                        ? `Gi\u1ea3m ${voucher.value}%`
+                        : `Gi\u1ea3m ${formatCurrency(voucher.value)}`}
                     </p>
                     <p className="storefront-voucher-meta">
-                      Đơn tối thiểu {formatCurrency(voucher.minOrderValue || 0)}
+                      \u0110\u01a1n t\u1ed1i thi\u1ec3u {formatCurrency(voucher.minOrderValue || 0)}
                     </p>
                   </div>
                   <TicketPercent size={18} />
@@ -187,17 +175,17 @@ export const BrowseTabContent = memo(({
       <div className="storefront-campaign-overlay" />
       <div className="storefront-campaign-content">
         <p>Campaign</p>
-        <h3>Ưu đãi nổi bật tại {storeName}</h3>
-        <span>Mua sắm an tâm với chính sách bảo vệ từ sàn.</span>
+        <h3>\u01afu \u0111\u00e3i n\u1ed5i b\u1eadt t\u1ea1i {storeName}</h3>
+        <span>Mua s\u1eafm an t\u00e2m v\u1edbi ch\u00ednh s\u00e1ch b\u1ea3o v\u1ec7 t\u1eeb s\u00e0n.</span>
       </div>
     </div>
 
     <div className="storefront-panel">
       <div className="storefront-panel-head">
-        <h2>Sản phẩm được quan tâm</h2>
-        <span>{topSellingProducts.length} sản phẩm</span>
+        <h2>S\u1ea3n ph\u1ea9m \u0111\u01b0\u1ee3c quan t\u00e2m</h2>
+        <span>{topSellingProducts.length} s\u1ea3n ph\u1ea9m</span>
       </div>
-      <StorefrontProductGrid rows={topSellingProducts} storeName={storeName} onQuickAdd={onQuickAdd} />
+      <StorefrontProductGrid rows={topSellingProducts} storeName={storeName} />
     </div>
   </>
 ));
@@ -211,18 +199,17 @@ export const ProductsTabContent = memo(({
   productPageLoading,
   paginationTokens,
   storeName,
-  onQuickAdd,
   onPageChange,
 }: ProductsTabContentProps) => (
   <div className="storefront-panel">
     <div className="storefront-panel-head">
-      <h2>Tất cả sản phẩm</h2>
-      <span>{productTotal} sản phẩm</span>
+      <h2>T\u1ea5t c\u1ea3 s\u1ea3n ph\u1ea9m</h2>
+      <span>{productTotal} s\u1ea3n ph\u1ea9m</span>
     </div>
-    <StorefrontProductGrid rows={productPageItems} storeName={storeName} onQuickAdd={onQuickAdd} />
+    <StorefrontProductGrid rows={productPageItems} storeName={storeName} />
     <p className="storefront-page-summary">
-      Trang {productPage}/{productTotalPages} - {productTotal} sản phẩm
-      {productPageLoading ? ' - Đang tải...' : ''}
+      Trang {productPage}/{productTotalPages} - {productTotal} s\u1ea3n ph\u1ea9m
+      {productPageLoading ? ' - \u0110ang t\u1ea3i...' : ''}
     </p>
     {productTotalPages > 1 ? (
       <div className="storefront-pagination">
@@ -232,7 +219,7 @@ export const ProductsTabContent = memo(({
           onClick={() => onPageChange(Math.max(1, productPage - 1))}
           disabled={productPageLoading || productPage === 1}
         >
-          Trước
+          Tr\u01b0\u1edbc
         </button>
         <div className="storefront-page-list" aria-label="Pagination">
           {paginationTokens.map((token) => (
@@ -274,19 +261,19 @@ export const CategoriesTabContent = memo(({
 }: CategoriesTabContentProps) => (
   <div className="storefront-panel">
     <div className="storefront-panel-head">
-      <h2>Danh mục của cửa hàng</h2>
-      <span>{groupedByCategory.length} danh mục</span>
+      <h2>Danh m\u1ee5c c\u1ee7a c\u1eeda h\u00e0ng</h2>
+      <span>{groupedByCategory.length} danh m\u1ee5c</span>
     </div>
     {categoryLoading ? (
-      <p className="storefront-empty">Đang tải danh mục...</p>
+      <p className="storefront-empty">\u0110ang t\u1ea3i danh m\u1ee5c...</p>
     ) : groupedByCategory.length === 0 ? (
-      <p className="storefront-empty">Hiện chưa có danh mục có sản phẩm.</p>
+      <p className="storefront-empty">Hi\u1ec7n ch\u01b0a c\u00f3 danh m\u1ee5c c\u00f3 s\u1ea3n ph\u1ea9m.</p>
     ) : (
       <div className="storefront-category-list">
         {groupedByCategory.map((group) => (
           <div key={group.name} className="storefront-category-item">
             <p className="storefront-category-name">{group.name}</p>
-            <span className="storefront-category-count">{group.rows.length} sản phẩm</span>
+            <span className="storefront-category-count">{group.rows.length} s\u1ea3n ph\u1ea9m</span>
           </div>
         ))}
       </div>
@@ -298,12 +285,12 @@ CategoriesTabContent.displayName = 'CategoriesTabContent';
 export const ReviewsTabContent = memo(({ reviews }: ReviewsTabContentProps) => (
   <div className="storefront-panel">
     <div className="storefront-panel-head">
-      <h2>Đánh giá khách hàng</h2>
-      <span>{reviews.length} đánh giá</span>
+      <h2>\u0110\u00e1nh gi\u00e1 kh\u00e1ch h\u00e0ng</h2>
+      <span>{reviews.length} \u0111\u00e1nh gi\u00e1</span>
     </div>
 
     {reviews.length === 0 ? (
-      <p className="storefront-empty">Cửa hàng chưa có đánh giá công khai.</p>
+      <p className="storefront-empty">C\u1eeda h\u00e0ng ch\u01b0a c\u00f3 \u0111\u00e1nh gi\u00e1 c\u00f4ng khai.</p>
     ) : (
       <div className="storefront-review-list">
         {reviews.slice(0, 20).map((review) => (
