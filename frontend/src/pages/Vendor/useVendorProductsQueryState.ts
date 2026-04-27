@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { normalizePositiveInteger } from './vendorHelpers';
 import { normalizeProductTab } from './vendorProducts.constants';
@@ -13,7 +13,6 @@ export const useVendorProductsQueryState = ({ onScopeChange }: UseVendorProducts
   const activeTab = normalizeProductTab(searchParams.get('status'));
   const page = normalizePositiveInteger(searchParams.get('page'));
   const keyword = (searchParams.get('q') || '').trim();
-  const [searchQuery, setSearchQuery] = useState(keyword);
 
   const updateQuery = useCallback(
     (mutate: (query: URLSearchParams) => void, replace = false) => {
@@ -28,33 +27,6 @@ export const useVendorProductsQueryState = ({ onScopeChange }: UseVendorProducts
     },
     [setSearchParams],
   );
-
-  useEffect(() => {
-    if (searchQuery !== keyword) {
-      setSearchQuery(keyword);
-    }
-  }, [keyword, searchQuery]);
-
-  useEffect(() => {
-    if (searchQuery.trim() === keyword) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      onScopeChange?.();
-      updateQuery((query) => {
-        const next = searchQuery.trim();
-        if (next) {
-          query.set('q', next);
-        } else {
-          query.delete('q');
-        }
-        query.set('page', '1');
-      }, true);
-    }, 260);
-
-    return () => window.clearTimeout(timer);
-  }, [keyword, onScopeChange, searchQuery, updateQuery]);
 
   const handleTabChange = useCallback((key: string) => {
     const nextTab = normalizeProductTab(key);
@@ -76,7 +48,6 @@ export const useVendorProductsQueryState = ({ onScopeChange }: UseVendorProducts
   }, [updateQuery]);
 
   const resetCurrentView = useCallback(() => {
-    setSearchQuery('');
     onScopeChange?.();
     setSearchParams(new URLSearchParams());
   }, [onScopeChange, setSearchParams]);
@@ -85,8 +56,6 @@ export const useVendorProductsQueryState = ({ onScopeChange }: UseVendorProducts
     activeTab,
     page,
     keyword,
-    searchQuery,
-    setSearchQuery,
     updateQuery,
     handleTabChange,
     setPage,

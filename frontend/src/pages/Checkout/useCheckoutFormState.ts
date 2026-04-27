@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { authService } from '../../services/authService';
 import { apiRequest } from '../../services/apiClient';
 import { useAddressLocation } from '../../hooks/useAddressLocation';
@@ -26,29 +26,21 @@ const fieldErrorMap: Partial<Record<keyof CheckoutFormValues, keyof FormErrors>>
 };
 
 export const useCheckoutFormState = () => {
-  const [formValues, setFormValues] = useState<CheckoutFormValues>(DEFAULT_CHECKOUT_FORM_VALUES);
+  const [formValues, setFormValues] = useState<CheckoutFormValues>(() => {
+    const session = authService.getSession() || authService.getAdminSession();
+    const sessionEmail = (session?.user?.email || '').trim();
+
+    return sessionEmail
+      ? {
+          ...DEFAULT_CHECKOUT_FORM_VALUES,
+          email: sessionEmail,
+        }
+      : DEFAULT_CHECKOUT_FORM_VALUES;
+  });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [saveAddressToBook, setSaveAddressToBook] = useState(true);
   const [isAddressFromBook, setIsAddressFromBook] = useState(false);
   const addressLocation = useAddressLocation();
-
-  useEffect(() => {
-    const session = authService.getSession() || authService.getAdminSession();
-    const sessionEmail = (session?.user?.email || '').trim();
-    if (!sessionEmail) {
-      return;
-    }
-
-    setFormValues((prev) => {
-      if (prev.email.trim()) {
-        return prev;
-      }
-      return {
-        ...prev,
-        email: sessionEmail,
-      };
-    });
-  }, []);
 
   const handleFieldChange = useCallback((field: keyof CheckoutFormValues, value: string) => {
     if (field !== 'email' && field !== 'note' && isAddressFromBook) {
