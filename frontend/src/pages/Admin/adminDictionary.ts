@@ -15,7 +15,7 @@ export const ADMIN_DICTIONARY = {
       products: 'Sản phẩm',
       categories: 'Danh mục',
       customers: 'Khách hàng',
-      promotions: 'Khuyến mãi',
+      promotions: 'Voucher toàn sàn',
       reviews: 'Đánh giá',
       content: 'Nội dung',
       settings: 'Cấu hình',

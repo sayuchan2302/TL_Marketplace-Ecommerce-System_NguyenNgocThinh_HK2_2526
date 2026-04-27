@@ -23,12 +23,15 @@ public class AdminOrderResponse {
     private BigDecimal discount;
     private BigDecimal total;
     private BigDecimal commissionFee;
+    private BigDecimal commissionRateApplied;
+    private BigDecimal commissionBaseAmount;
     private BigDecimal vendorPayout;
     private String trackingNumber;
     private String carrier;
     private String note;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime deliveredAt;
 
     // Flattened user and address data to avoid lazy load issues
     private CustomerInfo customer;

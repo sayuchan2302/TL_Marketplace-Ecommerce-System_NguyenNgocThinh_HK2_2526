@@ -34,12 +34,15 @@ interface BackendAdminOrder {
   discount?: number;
   total?: number;
   commissionFee?: number;
+  commissionRateApplied?: number;
+  commissionBaseAmount?: number;
   vendorPayout?: number;
   trackingNumber?: string;
   carrier?: string;
   note?: string;
   createdAt?: string;
   updatedAt?: string;
+  deliveredAt?: string;
   storeName?: string;
   customer?: {
     name?: string;
@@ -208,7 +211,7 @@ const mapBackendToAdmin = (order: BackendAdminOrder): AdminOrderRecord => {
     avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=0EA5E9&color=fff`,
     total: (order.total ?? 0).toLocaleString('vi-VN', { style: 'currency', currency: 'VND' }),
     storeName: order.storeName,
-    commissionRate: undefined,
+    commissionRate: order.commissionRateApplied != null ? Number(order.commissionRateApplied) : undefined,
     commissionFee: Number(order.commissionFee || 0),
     vendorPayout: Number(order.vendorPayout || 0),
     paymentStatus: mapPaymentStatus(order.paymentStatus, order.paymentMethod),

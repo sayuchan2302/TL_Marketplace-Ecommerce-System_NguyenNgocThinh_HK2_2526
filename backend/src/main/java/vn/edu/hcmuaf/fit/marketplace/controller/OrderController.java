@@ -20,7 +20,6 @@ import vn.edu.hcmuaf.fit.marketplace.security.AuthContext.UserContext;
 import vn.edu.hcmuaf.fit.marketplace.service.OrderService;
 import vn.edu.hcmuaf.fit.marketplace.service.VendorAnalyticsService;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Locale;
@@ -279,11 +278,10 @@ public class OrderController {
     @PreAuthorize("hasAnyRole('VENDOR', 'SUPER_ADMIN')")
     public ResponseEntity<VendorAnalyticsResponse> getMyStoreAnalytics(
             @RequestHeader("Authorization") String authHeader,
-            @RequestParam(required = false) UUID storeId,
-            @RequestParam(defaultValue = "5") BigDecimal commissionRate) {
+            @RequestParam(required = false) UUID storeId) {
         UserContext ctx = authContext.requireVendor(authHeader);
         UUID effectiveStoreId = authContext.resolveRequiredStoreId(ctx, storeId);
-        return ResponseEntity.ok(vendorAnalyticsService.getAnalytics(effectiveStoreId, commissionRate));
+        return ResponseEntity.ok(vendorAnalyticsService.getAnalytics(effectiveStoreId));
     }
 
     // ─── Admin Endpoints ───────────────────────────────────────────────────────

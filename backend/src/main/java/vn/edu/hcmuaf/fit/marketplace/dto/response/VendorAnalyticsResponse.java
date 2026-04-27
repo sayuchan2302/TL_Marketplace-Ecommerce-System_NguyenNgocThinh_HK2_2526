@@ -17,6 +17,7 @@ public class VendorAnalyticsResponse {
     private PeriodData today;
     private PeriodData week;
     private PeriodData month;
+    private PeriodData year;
     private List<DailySeriesData> dailyData;
     private BigDecimal commissionRate;
 

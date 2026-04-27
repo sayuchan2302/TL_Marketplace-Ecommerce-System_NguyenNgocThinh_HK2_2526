@@ -439,7 +439,7 @@ const VendorPromotions = () => {
   return (
     <VendorLayout
       title="Voucher shop và doanh thu ưu đãi"
-      breadcrumbs={['Kênh Người Bán', 'Ưu đãi cửa hàng']}
+      breadcrumbs={['Kênh Người Bán', 'Voucher cửa hàng']}
       actions={(
         <button className="admin-primary-btn vendor-admin-primary" onClick={openCreate} disabled={working}>
           <Plus size={16} />

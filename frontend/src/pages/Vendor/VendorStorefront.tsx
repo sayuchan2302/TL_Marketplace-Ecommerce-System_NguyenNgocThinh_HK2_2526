@@ -1,6 +1,6 @@
 ﻿import './Vendor.css';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { ImagePlus, Save, ShieldCheck, Upload } from 'lucide-react';
+import { Camera, ImagePlus, ShieldCheck, Upload } from 'lucide-react';
 import VendorLayout from './VendorLayout';
 import { vendorPortalService, type VendorSettingsData } from '../../services/vendorPortalService';
 import { storeService, type StoreProfile } from '../../services/storeService';
@@ -10,6 +10,9 @@ import { AdminStateBlock } from '../Admin/AdminStateBlocks';
 import { PLACEHOLDER_STORE_BANNER } from '../../constants/placeholders';
 
 const STORE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const STOREFRONT_AUTOSAVE_DELAY_MS = 700;
+
+type StorefrontAutoSaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
 const defaultSettings: VendorSettingsData = {
   storeInfo: { name: '', slug: '', description: '', logo: '', banner: '', contactEmail: '', phone: '', address: '' },
@@ -42,13 +45,22 @@ const VendorStorefront = () => {
   const { addToast } = useToast();
   const [settings, setSettings] = useState<VendorSettingsData>(defaultSettings);
   const [storeMeta, setStoreMeta] = useState<StoreProfile | null>(null);
-  const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [uploadingAsset, setUploadingAsset] = useState<'logo' | 'banner' | null>(null);
+  const [assetPreviews, setAssetPreviews] = useState<{ logo: string; banner: string }>({ logo: '', banner: '' });
+  const [autoSaveState, setAutoSaveState] = useState<StorefrontAutoSaveState>('idle');
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
+  const previewUrlsRef = useRef<{ logo: string | null; banner: string | null }>({ logo: null, banner: null });
+  const autosaveTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const latestSettingsRef = useRef(settings);
+  const syncedSettingsSnapshotRef = useRef('');
+  const hydratedRef = useRef(false);
+  const saveInFlightRef = useRef(false);
+  const queuedSaveRef = useRef(false);
 
   const updateStoreInfoField = useCallback((field: keyof VendorSettingsData['storeInfo'], value: string) => {
     setSettings((current) => ({
@@ -58,6 +70,28 @@ const VendorStorefront = () => {
         [field]: value,
       },
     }));
+  }, []);
+
+  const serializeSettings = useCallback((payload: VendorSettingsData) => JSON.stringify(payload), []);
+
+  useEffect(() => {
+    latestSettingsRef.current = settings;
+  }, [settings]);
+
+  const setAssetPreview = useCallback((field: 'logo' | 'banner', nextUrl: string) => {
+    const previousUrl = previewUrlsRef.current[field];
+    if (previousUrl && previousUrl.startsWith('blob:') && previousUrl !== nextUrl) {
+      URL.revokeObjectURL(previousUrl);
+    }
+    previewUrlsRef.current[field] = nextUrl || null;
+    setAssetPreviews((current) => (
+      current[field] === nextUrl
+        ? current
+        : {
+            ...current,
+            [field]: nextUrl,
+          }
+    ));
   }, []);
 
   useEffect(() => {
@@ -71,13 +105,20 @@ const VendorStorefront = () => {
           storeService.getMyStore(),
         ]);
         if (!active) return;
+        hydratedRef.current = false;
+        syncedSettingsSnapshotRef.current = serializeSettings(nextSettings);
+        latestSettingsRef.current = nextSettings;
         setSettings(nextSettings);
         setStoreMeta(nextStore);
+        setAutoSaveState('idle');
+        setLastSavedAt(null);
+        hydratedRef.current = true;
       } catch (err: unknown) {
         if (!active) return;
         const message = getUiErrorMessage(err, 'Không tải được gian hàng công khai');
         setLoadError(message);
         addToast(message, 'error');
+        setAutoSaveState('error');
       } finally {
         if (active) setLoading(false);
       }
@@ -86,7 +127,19 @@ const VendorStorefront = () => {
     return () => {
       active = false;
     };
-  }, [addToast, reloadKey]);
+  }, [addToast, reloadKey, serializeSettings]);
+
+  useEffect(() => () => {
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+    (['logo', 'banner'] as const).forEach((field) => {
+      const previewUrl = previewUrlsRef.current[field];
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    });
+  }, []);
 
   const completion = useMemo(() => {
     const fields = [
@@ -102,20 +155,62 @@ const VendorStorefront = () => {
     return Math.round((filled / fields.length) * 100);
   }, [settings]);
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const nextSettings = await vendorPortalService.updateSettings(settings);
-      const nextStore = await storeService.getMyStore();
-      setSettings(nextSettings);
-      setStoreMeta(nextStore);
-      addToast('Đã lưu bộ mặt gian hàng', 'success');
-    } catch (err: unknown) {
-      addToast(getUiErrorMessage(err, 'Lưu gian hàng thất bại'), 'error');
-    } finally {
-      setSaving(false);
+  const persistSettings = useCallback(async () => {
+    if (!hydratedRef.current) {
+      return;
     }
-  };
+
+    const payload = latestSettingsRef.current;
+    const payloadSnapshot = serializeSettings(payload);
+    if (!payloadSnapshot || payloadSnapshot === syncedSettingsSnapshotRef.current) {
+      return;
+    }
+
+    if (saveInFlightRef.current) {
+      queuedSaveRef.current = true;
+      return;
+    }
+
+    saveInFlightRef.current = true;
+    setAutoSaveState('saving');
+
+    try {
+      const nextSettings = await vendorPortalService.updateSettings(payload);
+      const nextStore = await storeService.getMyStore();
+      const latestSnapshot = serializeSettings(latestSettingsRef.current);
+
+      syncedSettingsSnapshotRef.current = payloadSnapshot;
+      setStoreMeta(nextStore);
+      setLastSavedAt(Date.now());
+      setAutoSaveState('saved');
+
+      if (latestSnapshot === payloadSnapshot) {
+        const normalizedSnapshot = serializeSettings(nextSettings);
+        latestSettingsRef.current = nextSettings;
+        syncedSettingsSnapshotRef.current = normalizedSnapshot;
+        setSettings(nextSettings);
+      } else {
+        queuedSaveRef.current = true;
+      }
+    } catch (err: unknown) {
+      setAutoSaveState('error');
+      addToast(getUiErrorMessage(err, 'Tự động lưu gian hàng thất bại'), 'error');
+    } finally {
+      saveInFlightRef.current = false;
+      if (queuedSaveRef.current) {
+        queuedSaveRef.current = false;
+        void persistSettings();
+      }
+    }
+  }, [addToast, serializeSettings]);
+
+  const flushPendingAutosave = useCallback(() => {
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    void persistSettings();
+  }, [persistSettings]);
 
   const openImagePicker = (field: 'logo' | 'banner') => {
     if (uploadingAsset) {
@@ -141,16 +236,50 @@ const VendorStorefront = () => {
     }
 
     try {
+      setAssetPreview(field, URL.createObjectURL(file));
       setUploadingAsset(field);
       const imageUrl = await storeService.uploadStoreImage(file);
       updateStoreInfoField(field, imageUrl);
+      setAssetPreview(field, '');
       addToast(field === 'logo' ? 'Đã tải logo gian hàng.' : 'Đã tải banner gian hàng.', 'success');
     } catch (err: unknown) {
+      setAssetPreview(field, '');
       addToast(getUiErrorMessage(err, 'Không thể tải ảnh gian hàng lên'), 'error');
     } finally {
       setUploadingAsset(null);
     }
   };
+
+  useEffect(() => {
+    if (!hydratedRef.current) {
+      return;
+    }
+
+    const currentSnapshot = serializeSettings(settings);
+    if (currentSnapshot === syncedSettingsSnapshotRef.current) {
+      return;
+    }
+
+    if (!saveInFlightRef.current) {
+      setAutoSaveState('pending');
+    }
+
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+
+    autosaveTimerRef.current = window.setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void persistSettings();
+    }, STOREFRONT_AUTOSAVE_DELAY_MS);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [persistSettings, serializeSettings, settings]);
 
   const storefrontStatus = resolveStorefrontStatus(storeMeta);
   const storefrontPath = settings.storeInfo.slug ? `/store/${settings.storeInfo.slug}` : '/store/:slug';
@@ -225,17 +354,31 @@ const VendorStorefront = () => {
 
   const passedChecks = storefrontChecklist.filter((item) => item.ok).length;
   const isStorefrontReady = passedChecks === storefrontChecklist.length;
+  const bannerPreview = assetPreviews.banner || settings.storeInfo.banner;
+  const logoPreview = assetPreviews.logo || settings.storeInfo.logo;
+  const autoSaveIndicator = useMemo(() => {
+    switch (autoSaveState) {
+      case 'pending':
+        return { className: 'storefront-sync-status pending', label: 'Sẽ tự động lưu...' };
+      case 'saving':
+        return { className: 'storefront-sync-status saving', label: 'Đang tự động lưu...' };
+      case 'saved':
+        return {
+          className: 'storefront-sync-status saved',
+          label: lastSavedAt ? `Đã tự động lưu ${new Date(lastSavedAt).toLocaleTimeString('vi-VN')}` : 'Đã tự động lưu',
+        };
+      case 'error':
+        return { className: 'storefront-sync-status error', label: 'Tự động lưu thất bại' };
+      default:
+        return { className: 'storefront-sync-status idle', label: 'Tự động lưu đang bật' };
+    }
+  }, [autoSaveState, lastSavedAt]);
 
   return (
     <VendorLayout
       title="Gian hàng công khai và bộ mặt thương hiệu"
       breadcrumbs={['Kênh Người Bán', 'Gian hàng']}
-      actions={(
-        <button className="vendor-primary-btn" onClick={() => void handleSave()} disabled={saving || loading}>
-          <Save size={16} style={{ marginRight: 6 }} />
-          {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
-        </button>
-      )}
+      actions={!loading ? <span className={autoSaveIndicator.className}>{autoSaveIndicator.label}</span> : undefined}
     >
       {loading ? (
         <AdminStateBlock
@@ -281,94 +424,23 @@ const VendorStorefront = () => {
             <div className="admin-left">
               <section className="admin-panel storefront-section-panel">
                 <div className="admin-panel-head">
-                  <h2>Thiết lập thương hiệu</h2>
+                  <h2>Thông tin công khai</h2>
                 </div>
                 <div className="form-grid">
-                  <div className="form-field full storefront-upload-block">
-                    <span>Banner gian hàng</span>
-                    <div className="storefront-upload-actions">
-                      <button
-                        type="button"
-                        className="admin-ghost-btn small storefront-upload-btn"
-                        onClick={() => openImagePicker('banner')}
-                        disabled={uploadingAsset !== null}
-                      >
-                        <Upload size={14} />
-                        <span>{uploadingAsset === 'banner' ? 'Đang tải banner...' : 'Tải banner từ máy'}</span>
-                      </button>
-                      <small className="admin-muted">JPG, PNG, WEBP, GIF (tối đa 5MB).</small>
-                    </div>
-                    <input
-                      ref={bannerInputRef}
-                      type="file"
-                      hidden
-                      accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
-                      onChange={(event) => void handleImageSelected('banner', event)}
-                    />
-                    {settings.storeInfo.banner ? (
-                      <div className="storefront-upload-preview is-banner">
-                        <img src={settings.storeInfo.banner} alt="Banner gian hàng" />
-                      </div>
-                    ) : (
-                      <p className="admin-muted small">Chưa có banner. Hãy tải ảnh để hiển thị trên storefront.</p>
-                    )}
-                  </div>
                   <label className="form-field">
                     <span>Tên gian hàng</span>
                     <input
                       value={settings.storeInfo.name}
                       onChange={(e) => updateStoreInfoField('name', e.target.value)}
+                      onBlur={flushPendingAutosave}
                     />
                   </label>
-                  <div className="form-field storefront-upload-block">
-                    <span>Logo gian hàng</span>
-                    <div className="storefront-upload-actions">
-                      <button
-                        type="button"
-                        className="admin-ghost-btn small storefront-upload-btn"
-                        onClick={() => openImagePicker('logo')}
-                        disabled={uploadingAsset !== null}
-                      >
-                        <Upload size={14} />
-                        <span>{uploadingAsset === 'logo' ? 'Đang tải logo...' : 'Tải logo từ máy'}</span>
-                      </button>
-                    </div>
-                    <input
-                      ref={logoInputRef}
-                      type="file"
-                      hidden
-                      accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
-                      onChange={(event) => void handleImageSelected('logo', event)}
-                    />
-                    {settings.storeInfo.logo ? (
-                      <div className="storefront-upload-preview is-logo">
-                        <img src={settings.storeInfo.logo} alt="Logo gian hàng" />
-                      </div>
-                    ) : (
-                      <p className="admin-muted small">Chưa có logo.</p>
-                    )}
-                  </div>
-                  <label className="form-field full">
-                    <span>Mô tả gian hàng</span>
-                    <textarea
-                      rows={5}
-                      value={settings.storeInfo.description}
-                      onChange={(e) => updateStoreInfoField('description', e.target.value)}
-                    />
-                  </label>
-                </div>
-              </section>
-
-              <section className="admin-panel storefront-section-panel">
-                <div className="admin-panel-head">
-                  <h2>Thông tin công khai</h2>
-                </div>
-                <div className="form-grid">
                   <label className="form-field">
                     <span>Email liên hệ</span>
                     <input
                       value={settings.storeInfo.contactEmail}
                       onChange={(e) => updateStoreInfoField('contactEmail', e.target.value)}
+                      onBlur={flushPendingAutosave}
                     />
                   </label>
                   <label className="form-field">
@@ -376,6 +448,7 @@ const VendorStorefront = () => {
                     <input
                       value={settings.storeInfo.phone}
                       onChange={(e) => updateStoreInfoField('phone', e.target.value)}
+                      onBlur={flushPendingAutosave}
                     />
                   </label>
                   <label className="form-field full">
@@ -383,6 +456,16 @@ const VendorStorefront = () => {
                     <input
                       value={settings.storeInfo.address}
                       onChange={(e) => updateStoreInfoField('address', e.target.value)}
+                      onBlur={flushPendingAutosave}
+                    />
+                  </label>
+                  <label className="form-field full">
+                    <span>Mô tả gian hàng</span>
+                    <textarea
+                      rows={5}
+                      value={settings.storeInfo.description}
+                      onChange={(e) => updateStoreInfoField('description', e.target.value)}
+                      onBlur={flushPendingAutosave}
                     />
                   </label>
                 </div>
@@ -428,28 +511,88 @@ const VendorStorefront = () => {
             <div className="admin-right">
               <section className="admin-panel storefront-section-panel">
                 <div className="admin-panel-head">
-                  <h2>Xem trước gian hàng</h2>
+                  <div>
+                    <h2>Xem trước gian hàng</h2>
+                    <p className="admin-muted small storefront-preview-subtitle">
+                      Bấm vào banner hoặc avatar để thay ảnh và xem trước ngay như khi lên storefront thật.
+                    </p>
+                  </div>
                 </div>
                 <div className="vendor-store-preview">
-                  <div
-                    className="vendor-store-preview-banner"
-                    style={{
-                      backgroundImage: `linear-gradient(rgba(15,23,42,.22), rgba(15,23,42,.38)), url(${
-                        settings.storeInfo.banner || PLACEHOLDER_STORE_BANNER
-                      })`,
-                    }}
-                  />
+                  <div className={`vendor-store-preview-banner ${uploadingAsset === 'banner' ? 'is-uploading' : ''}`}>
+                    <button
+                      type="button"
+                      className="vendor-store-preview-banner-button"
+                      onClick={() => openImagePicker('banner')}
+                      disabled={uploadingAsset !== null}
+                      aria-label={bannerPreview ? 'Thay banner gian hàng' : 'Tải banner gian hàng'}
+                      style={{
+                        backgroundImage: `linear-gradient(rgba(15,23,42,.22), rgba(15,23,42,.38)), url(${
+                          bannerPreview || PLACEHOLDER_STORE_BANNER
+                        })`,
+                      }}
+                    >
+                      <span className="vendor-store-preview-banner-overlay">
+                        {uploadingAsset === 'banner' ? (
+                          <>
+                            <Upload size={18} />
+                            <span>Đang tải banner...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Camera size={18} />
+                            <span>{bannerPreview ? 'Đổi banner' : 'Tải banner'}</span>
+                          </>
+                        )}
+                      </span>
+                    </button>
+                    <input
+                      ref={bannerInputRef}
+                      type="file"
+                      hidden
+                      accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                      onChange={(event) => void handleImageSelected('banner', event)}
+                    />
+                  </div>
                   <div className="vendor-store-preview-body">
                     <div className="vendor-store-preview-head">
-                      <div className="vendor-store-preview-logo">
-                        {settings.storeInfo.logo ? (
-                          <img src={settings.storeInfo.logo} alt={settings.storeInfo.name} />
-                        ) : (
-                          <div className="vendor-store-preview-logo-empty">
-                            <ImagePlus size={26} />
-                          </div>
-                        )}
+                      <div className={`vendor-store-preview-logo ${uploadingAsset === 'logo' ? 'is-uploading' : ''}`}>
+                        <button
+                          type="button"
+                          className="vendor-store-preview-logo-button"
+                          onClick={() => openImagePicker('logo')}
+                          disabled={uploadingAsset !== null}
+                          aria-label={logoPreview ? 'Thay logo gian hàng' : 'Tải logo gian hàng'}
+                        >
+                          {logoPreview ? (
+                            <img src={logoPreview} alt={settings.storeInfo.name || 'Logo gian hàng'} />
+                          ) : (
+                            <div className="vendor-store-preview-logo-empty">
+                              <ImagePlus size={26} />
+                            </div>
+                          )}
+                          <span className="vendor-store-preview-logo-overlay">
+                            {uploadingAsset === 'logo' ? (
+                              <>
+                                <Upload size={16} />
+                                <span>Đang tải...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Camera size={16} />
+                                <span>{logoPreview ? 'Đổi logo' : 'Tải logo'}</span>
+                              </>
+                            )}
+                          </span>
+                        </button>
                       </div>
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        hidden
+                        accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                        onChange={(event) => void handleImageSelected('logo', event)}
+                      />
                       <div className="vendor-store-preview-copy">
                         <div className="vendor-store-preview-title">
                           <h3>{settings.storeInfo.name || 'Chưa cập nhật tên gian hàng'}</h3>

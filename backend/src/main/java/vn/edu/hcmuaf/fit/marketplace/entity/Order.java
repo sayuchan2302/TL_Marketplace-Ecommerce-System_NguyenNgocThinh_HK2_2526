@@ -99,6 +99,12 @@ public class Order extends BaseEntity {
     @Column(name = "commission_fee")
     private BigDecimal commissionFee = BigDecimal.ZERO;
 
+    @Column(name = "commission_rate_applied")
+    private BigDecimal commissionRateApplied = BigDecimal.ZERO;
+
+    @Column(name = "commission_base_amount")
+    private BigDecimal commissionBaseAmount = BigDecimal.ZERO;
+
     @Column(name = "vendor_payout")
     private BigDecimal vendorPayout = BigDecimal.ZERO;
 
@@ -107,6 +113,9 @@ public class Order extends BaseEntity {
 
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
+
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
 
     @Builder.Default
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)

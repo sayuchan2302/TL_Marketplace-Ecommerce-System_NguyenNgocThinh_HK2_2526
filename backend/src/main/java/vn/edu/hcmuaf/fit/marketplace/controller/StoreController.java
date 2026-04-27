@@ -17,6 +17,7 @@ import vn.edu.hcmuaf.fit.marketplace.service.StoreService;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/stores")
@@ -174,6 +175,23 @@ public class StoreController {
         ));
     }
 
+    @PatchMapping("/{id}/commission-rate")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<StoreResponse> updateCommissionRate(
+            @PathVariable UUID id,
+            @RequestHeader("Authorization") String authHeader,
+            @RequestBody CommissionRateRequest request
+    ) {
+        AuthContext.UserContext admin = authContext.requireAdmin(authHeader);
+        return ResponseEntity.ok(storeService.updateCommissionRateAsAdmin(
+                id,
+                request.getCommissionRate(),
+                admin.getUserId(),
+                admin.getEmail(),
+                request.getNote()
+        ));
+    }
+
     @PutMapping("/my-store")
     public ResponseEntity<StoreResponse> updateStore(
             @RequestHeader("Authorization") String authHeader,
@@ -220,6 +238,27 @@ public class StoreController {
 
         public void setBankVerified(Boolean bankVerified) {
             this.bankVerified = bankVerified;
+        }
+
+        public String getNote() {
+            return note;
+        }
+
+        public void setNote(String note) {
+            this.note = note;
+        }
+    }
+
+    public static class CommissionRateRequest {
+        private BigDecimal commissionRate;
+        private String note;
+
+        public BigDecimal getCommissionRate() {
+            return commissionRate;
+        }
+
+        public void setCommissionRate(BigDecimal commissionRate) {
+            this.commissionRate = commissionRate;
         }
 
         public String getNote() {

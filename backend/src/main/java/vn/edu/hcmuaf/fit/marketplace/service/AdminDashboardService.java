@@ -108,23 +108,19 @@ public class AdminDashboardService {
             commissionByDay.put(date, BigDecimal.ZERO);
         }
 
-        List<Order> orders = orderRepository.findRootOrdersCreatedBetween(fromDate, toDate);
+        List<Order> orders = orderRepository.findRootDeliveredOrdersByDeliveredAtBetween(fromDate, toDate);
         for (Order order : orders) {
-            if (order.getCreatedAt() == null) {
+            LocalDateTime deliveredAt = order.getDeliveredAt() != null ? order.getDeliveredAt() : order.getCreatedAt();
+            if (deliveredAt == null) {
                 continue;
             }
-            LocalDate orderDate = order.getCreatedAt().toLocalDate();
+            LocalDate orderDate = deliveredAt.toLocalDate();
             if (!gmvByDay.containsKey(orderDate)) {
                 continue;
             }
 
-            if (order.getStatus() != Order.OrderStatus.CANCELLED) {
-                gmvByDay.put(orderDate, gmvByDay.get(orderDate).add(safeAmount(order.getTotal())));
-            }
-
-            if (order.getStatus() == Order.OrderStatus.DELIVERED) {
-                commissionByDay.put(orderDate, commissionByDay.get(orderDate).add(safeAmount(order.getCommissionFee())));
-            }
+            gmvByDay.put(orderDate, gmvByDay.get(orderDate).add(safeAmount(order.getTotal())));
+            commissionByDay.put(orderDate, commissionByDay.get(orderDate).add(safeAmount(order.getCommissionFee())));
         }
 
         List<AdminDashboardResponse.TrendPoint> trend = new ArrayList<>();

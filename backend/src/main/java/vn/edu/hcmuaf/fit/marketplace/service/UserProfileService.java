@@ -32,19 +32,22 @@ public class UserProfileService {
     private final AuthContext authContext;
     private final PasswordEncoder passwordEncoder;
     private final AvatarStorageService avatarStorageService;
+    private final StorePerformanceMetricsService storePerformanceMetricsService;
 
     public UserProfileService(
             UserRepository userRepository,
             StoreFollowRepository storeFollowRepository,
             AuthContext authContext,
             PasswordEncoder passwordEncoder,
-            AvatarStorageService avatarStorageService
+            AvatarStorageService avatarStorageService,
+            StorePerformanceMetricsService storePerformanceMetricsService
     ) {
         this.userRepository = userRepository;
         this.storeFollowRepository = storeFollowRepository;
         this.authContext = authContext;
         this.passwordEncoder = passwordEncoder;
         this.avatarStorageService = avatarStorageService;
+        this.storePerformanceMetricsService = storePerformanceMetricsService;
     }
 
     @Transactional(readOnly = true)
@@ -148,6 +151,8 @@ public class UserProfileService {
         if (store == null || store.getId() == null) {
             return FollowedStoreResponse.builder().build();
         }
+        StorePerformanceMetricsService.StorePerformanceMetrics performanceMetrics =
+                storePerformanceMetricsService.resolve(store.getId());
 
         return FollowedStoreResponse.builder()
                 .storeId(store.getId())
@@ -155,7 +160,7 @@ public class UserProfileService {
                 .storeSlug(store.getSlug())
                 .storeLogo(store.getLogo())
                 .rating(store.getRating() != null ? store.getRating() : 0.0)
-                .totalOrders(store.getTotalOrders() != null ? store.getTotalOrders() : 0)
+                .totalOrders(performanceMetrics.totalOrders())
                 .followerCount(followerCountByStoreId.getOrDefault(store.getId(), 0L))
                 .followedAt(follow.getCreatedAt())
                 .build();

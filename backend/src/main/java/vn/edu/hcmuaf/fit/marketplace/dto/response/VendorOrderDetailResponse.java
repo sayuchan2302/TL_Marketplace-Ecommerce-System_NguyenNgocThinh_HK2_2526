@@ -31,6 +31,8 @@ public class VendorOrderDetailResponse {
     private String trackingNumber;
     private String shippingCarrier;
     private BigDecimal commissionFee;
+    private BigDecimal commissionRateApplied;
+    private BigDecimal commissionBaseAmount;
     private BigDecimal vendorPayout;
     private VendorOrderSummaryResponse.Customer customer;
     private ShippingAddress shippingAddress;

@@ -387,8 +387,8 @@ const AdminPromotions = () => {
 
   return (
     <AdminLayout
-      title="Khuyến mãi"
-      breadcrumbs={['Khuyến mãi', 'Chiến dịch điều hành']}
+      title="Voucher toàn sàn"
+      breadcrumbs={['Voucher toàn sàn', 'Chiến dịch điều hành']}
       actions={
         <button className="admin-primary-btn" onClick={openCreate} disabled={selectableStores.length === 0}>
           <Plus size={16} /> Tạo Voucher

@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vn.edu.hcmuaf.fit.marketplace.entity.CommissionTier;
+import vn.edu.hcmuaf.fit.marketplace.security.AuthContext;
 import vn.edu.hcmuaf.fit.marketplace.service.CommissionTierService;
 
 import java.math.BigDecimal;
@@ -16,9 +17,11 @@ import java.util.UUID;
 public class CommissionTierController {
 
     private final CommissionTierService commissionTierService;
+    private final AuthContext authContext;
 
-    public CommissionTierController(CommissionTierService commissionTierService) {
+    public CommissionTierController(CommissionTierService commissionTierService, AuthContext authContext) {
         this.commissionTierService = commissionTierService;
+        this.authContext = authContext;
     }
 
     @GetMapping
@@ -78,6 +81,18 @@ public class CommissionTierController {
     public ResponseEntity<Map<String, String>> toggleActive(@PathVariable UUID id) {
         commissionTierService.toggleActive(id);
         return ResponseEntity.ok(Map.of("message", "Tier status toggled"));
+    }
+
+    @PatchMapping("/{id}/apply-to-store/{storeId}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<Map<String, String>> applyToStore(
+            @PathVariable UUID id,
+            @PathVariable UUID storeId,
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        AuthContext.UserContext admin = authContext.requireAdmin(authHeader);
+        commissionTierService.applyTierToStore(id, storeId, admin.getUserId(), admin.getEmail());
+        return ResponseEntity.ok(Map.of("message", "Tier applied to store"));
     }
 
     @DeleteMapping("/{id}")

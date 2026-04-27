@@ -10,18 +10,16 @@ export const adminPanelNav: PanelNavItem[] = [
   { label: 'Hoàn đơn', to: '/admin/returns' },
   { label: 'Đánh giá', to: '/admin/reviews' },
   { label: 'Tài chính', to: '/admin/financials' },
-  { label: 'Khuyến mãi', to: '/admin/promotions' },
+  { label: 'Voucher toàn sàn', to: '/admin/promotions' },
   { label: 'Bot và AI', to: '/admin/bot-ai' },
 ];
 
 export const vendorPanelNav: PanelNavItem[] = [
   { label: 'Dashboard', to: '/vendor/dashboard', exact: true },
-  { label: 'Doanh thu thực nhận', to: '/vendor/analytics' },
   { label: 'Gian hàng', to: '/vendor/storefront' },
-  { label: 'Kho', to: '/vendor/products' },
+  { label: 'Sản phẩm', to: '/vendor/products' },
   { label: 'Đơn hàng', to: '/vendor/orders' },
   { label: 'Hoàn trả', to: '/vendor/returns' },
-  { label: 'Ưu đãi cửa hàng', to: '/vendor/promotions' },
+  { label: 'Voucher cửa hàng', to: '/vendor/promotions' },
   { label: 'Đánh giá và phản hồi', to: '/vendor/reviews' },
-  { label: 'Cài đặt vận hành', to: '/vendor/settings' },
 ];

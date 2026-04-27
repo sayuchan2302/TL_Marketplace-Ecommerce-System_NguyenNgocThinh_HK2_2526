@@ -276,6 +276,8 @@ class OrderServiceTest {
         AdminOrderResponse response = orderService.create(userId, request);
 
         assertEquals(0, response.getSubtotal().compareTo(new BigDecimal("160000")));
+        assertEquals(0, response.getCommissionRateApplied().compareTo(new BigDecimal("10.0000")));
+        assertEquals(0, response.getCommissionBaseAmount().compareTo(new BigDecimal("160000")));
         assertEquals(0, response.getCommissionFee().compareTo(new BigDecimal("16000.00")));
         assertEquals(0, response.getVendorPayout().compareTo(new BigDecimal("174000.00")));
         assertEquals(3, variant.getStockQuantity());
@@ -361,6 +363,22 @@ class OrderServiceTest {
         assertEquals(Order.OrderStatus.CANCELLED, updated.getStatus());
         assertEquals(1, walletService.getDebitCallCount());
         assertEquals(updated.getId(), walletService.getLastDebitedOrderId());
+    }
+
+    @Test
+    void vendorDeliveringOrderSnapshotsDeliveredAtAndCreditsEscrow() {
+        Order order = buildStoreOrder(Order.OrderStatus.SHIPPED);
+        order.setTrackingNumber("TRACK-001");
+        order.setShippingCarrier("GHN");
+        when(orderRepository.findByIdAndStoreId(orderId, storeId)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Order updated = orderService.updateStatusForStore(orderId, storeId, Order.OrderStatus.DELIVERED, null, null, null);
+
+        assertEquals(Order.OrderStatus.DELIVERED, updated.getStatus());
+        assertTrue(updated.getDeliveredAt() != null);
+        assertEquals(1, walletService.getCreditCallCount());
+        assertEquals(updated.getId(), walletService.getLastCreditedOrderId());
     }
 
     @Test
@@ -874,7 +892,9 @@ class OrderServiceTest {
 
     private static final class RecordingWalletService extends WalletService {
         private int debitCallCount = 0;
+        private int creditCallCount = 0;
         private UUID lastDebitedOrderId;
+        private UUID lastCreditedOrderId;
 
         private RecordingWalletService() {
             super(null, null, null, null, null, null, null);
@@ -888,7 +908,8 @@ class OrderServiceTest {
 
         @Override
         public void creditEscrowForCompletedOrder(Order order) {
-            // No-op for OrderService unit tests
+            creditCallCount++;
+            lastCreditedOrderId = order == null ? null : order.getId();
         }
 
         private int getDebitCallCount() {
@@ -897,6 +918,14 @@ class OrderServiceTest {
 
         private UUID getLastDebitedOrderId() {
             return lastDebitedOrderId;
+        }
+
+        private int getCreditCallCount() {
+            return creditCallCount;
+        }
+
+        private UUID getLastCreditedOrderId() {
+            return lastCreditedOrderId;
         }
     }
 

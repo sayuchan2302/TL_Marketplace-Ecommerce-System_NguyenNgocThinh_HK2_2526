@@ -239,10 +239,11 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query("""
             SELECT o FROM Order o
             WHERE o.parentOrder IS NULL
-              AND o.createdAt >= :fromDate
-              AND o.createdAt < :toDate
+              AND o.status = 'DELIVERED'
+              AND COALESCE(o.deliveredAt, o.createdAt) >= :fromDate
+              AND COALESCE(o.deliveredAt, o.createdAt) < :toDate
             """)
-    List<Order> findRootOrdersCreatedBetween(
+    List<Order> findRootDeliveredOrdersByDeliveredAtBetween(
             @Param("fromDate") LocalDateTime fromDate,
             @Param("toDate") LocalDateTime toDate
     );
@@ -257,8 +258,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             JOIN oi.order o
             WHERE o.storeId = :storeId
               AND o.status = 'DELIVERED'
-              AND o.createdAt >= :fromDate
-              AND o.createdAt < :toDate
+              AND COALESCE(o.deliveredAt, o.createdAt) >= :fromDate
+              AND COALESCE(o.deliveredAt, o.createdAt) < :toDate
             GROUP BY oi.product.id
             ORDER BY SUM(oi.quantity) DESC, SUM(oi.totalPrice) DESC
             """)
@@ -322,7 +323,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             WHERE o.user.id = :userId
               AND o.status = 'DELIVERED'
               AND oi.product.id = :productId
-            ORDER BY o.createdAt DESC
+            ORDER BY COALESCE(o.deliveredAt, o.createdAt) DESC
             """)
     List<Order> findDeliveredOrdersByUserAndProduct(
             @Param("userId") UUID userId,
@@ -338,7 +339,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
                    COALESCE(oi.productImage, '') AS productImage,
                    COALESCE(oi.variantName, '') AS variantName,
                    oi.quantity AS quantity,
-                   o.createdAt AS deliveredAt
+                   COALESCE(o.deliveredAt, o.createdAt) AS deliveredAt
             FROM OrderItem oi
             JOIN oi.order o
             WHERE o.user.id = :userId
@@ -350,7 +351,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
                   AND r.order.id = o.id
                   AND r.product.id = oi.product.id
               )
-            ORDER BY o.createdAt DESC, oi.createdAt DESC
+            ORDER BY COALESCE(o.deliveredAt, o.createdAt) DESC, oi.createdAt DESC
             """)
     List<EligibleReviewItemProjection> findEligibleReviewItemsByUserId(@Param("userId") UUID userId);
 
@@ -373,7 +374,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     }
 
     @Query("""
-            SELECT DATE(o.createdAt) AS date,
+            SELECT DATE(COALESCE(o.deliveredAt, o.createdAt)) AS date,
                    COALESCE(SUM(o.total), 0) AS revenue,
                    COUNT(o.id) AS orderCount,
                    COALESCE(SUM(o.vendorPayout), 0) AS payout,
@@ -381,9 +382,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             FROM Order o
             WHERE o.storeId = :storeId
               AND o.status = 'DELIVERED'
-              AND o.createdAt >= :fromDate
-              AND o.createdAt < :toDate
-            GROUP BY DATE(o.createdAt)
+              AND COALESCE(o.deliveredAt, o.createdAt) >= :fromDate
+              AND COALESCE(o.deliveredAt, o.createdAt) < :toDate
+            GROUP BY DATE(COALESCE(o.deliveredAt, o.createdAt))
             ORDER BY date ASC
             """)
     List<DailySeriesProjection> findDailySeriesByStoreBetween(
@@ -403,8 +404,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             FROM Order o
             WHERE o.storeId = :storeId
               AND o.status = 'DELIVERED'
-              AND o.createdAt >= :fromDate
-              AND o.createdAt < :toDate
+              AND COALESCE(o.deliveredAt, o.createdAt) >= :fromDate
+              AND COALESCE(o.deliveredAt, o.createdAt) < :toDate
             """)
     List<PeriodSummaryProjection> findPeriodSummaryByStoreBetween(
             @Param("storeId") UUID storeId,
@@ -417,8 +418,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             FROM Order o
             WHERE o.storeId = :storeId
               AND o.status = 'DELIVERED'
-              AND o.createdAt >= :fromDate
-              AND o.createdAt < :toDate
+              AND COALESCE(o.deliveredAt, o.createdAt) >= :fromDate
+              AND COALESCE(o.deliveredAt, o.createdAt) < :toDate
             """)
     long countDistinctCustomersByStoreBetween(
             @Param("storeId") UUID storeId,

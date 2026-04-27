@@ -15,9 +15,11 @@ import java.util.UUID;
 public class CommissionTierService {
 
     private final CommissionTierRepository commissionTierRepository;
+    private final StoreService storeService;
 
-    public CommissionTierService(CommissionTierRepository commissionTierRepository) {
+    public CommissionTierService(CommissionTierRepository commissionTierRepository, StoreService storeService) {
         this.commissionTierRepository = commissionTierRepository;
+        this.storeService = storeService;
     }
 
     public List<CommissionTier> findAllActive() {
@@ -48,8 +50,23 @@ public class CommissionTierService {
                     boolean meetsOrders = tier.getMinOrderCount() == null || orderCount >= tier.getMinOrderCount();
                     return meetsRevenue && meetsOrders;
                 })
-                .min((a, b) -> a.getRate().compareTo(b.getRate()))
+                .max((left, right) -> Integer.compare(
+                        left.getSortOrder() != null ? left.getSortOrder() : 0,
+                        right.getSortOrder() != null ? right.getSortOrder() : 0
+                ))
                 .orElseGet(this::getDefaultTier);
+    }
+
+    @Transactional
+    public void applyTierToStore(UUID tierId, UUID storeId, UUID adminId, String adminEmail) {
+        CommissionTier tier = findById(tierId);
+        storeService.updateCommissionRateAsAdmin(
+                storeId,
+                tier.getRate(),
+                adminId,
+                adminEmail,
+                "Applied commission tier: " + tier.getName()
+        );
     }
 
     @Transactional

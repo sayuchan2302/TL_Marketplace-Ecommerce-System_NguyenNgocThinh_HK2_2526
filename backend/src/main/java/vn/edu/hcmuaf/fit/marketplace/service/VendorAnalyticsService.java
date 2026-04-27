@@ -5,9 +5,11 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmuaf.fit.marketplace.dto.response.VendorAnalyticsResponse;
 import vn.edu.hcmuaf.fit.marketplace.dto.response.VendorAnalyticsResponse.DailySeriesData;
 import vn.edu.hcmuaf.fit.marketplace.dto.response.VendorAnalyticsResponse.PeriodData;
+import vn.edu.hcmuaf.fit.marketplace.entity.Store;
 import vn.edu.hcmuaf.fit.marketplace.repository.OrderRepository;
 import vn.edu.hcmuaf.fit.marketplace.repository.OrderRepository.DailySeriesProjection;
 import vn.edu.hcmuaf.fit.marketplace.repository.OrderRepository.PeriodSummaryProjection;
+import vn.edu.hcmuaf.fit.marketplace.repository.StoreRepository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,25 +24,29 @@ import java.util.stream.Collectors;
 public class VendorAnalyticsService {
 
     private final OrderRepository orderRepository;
+    private final StoreRepository storeRepository;
 
-    public VendorAnalyticsService(OrderRepository orderRepository) {
+    public VendorAnalyticsService(OrderRepository orderRepository, StoreRepository storeRepository) {
         this.orderRepository = orderRepository;
+        this.storeRepository = storeRepository;
     }
 
     @Transactional(readOnly = true)
-    public VendorAnalyticsResponse getAnalytics(UUID storeId, BigDecimal commissionRate) {
+    public VendorAnalyticsResponse getAnalytics(UUID storeId) {
         LocalDate today = LocalDate.now();
         LocalDateTime todayStart = today.atStartOfDay();
         LocalDateTime weekStart = today.minusDays(6).atStartOfDay();
         LocalDateTime monthStart = today.minusDays(29).atStartOfDay();
+        LocalDateTime yearStart = today.minusDays(364).atStartOfDay();
         LocalDateTime tomorrowStart = today.plusDays(1).atStartOfDay();
 
         PeriodData todayData = buildPeriodData(storeId, todayStart, tomorrowStart);
         PeriodData weekData = buildPeriodData(storeId, weekStart, tomorrowStart);
         PeriodData monthData = buildPeriodData(storeId, monthStart, tomorrowStart);
+        PeriodData yearData = buildPeriodData(storeId, yearStart, tomorrowStart);
 
         List<DailySeriesProjection> dailyRows = orderRepository.findDailySeriesByStoreBetween(
-                storeId, monthStart, tomorrowStart);
+                storeId, yearStart, tomorrowStart);
 
         Map<LocalDate, DailySeriesProjection> dailyMap = dailyRows.stream()
                 .collect(Collectors.toMap(
@@ -49,7 +55,7 @@ public class VendorAnalyticsService {
                 ));
 
         List<DailySeriesData> dailyData = new ArrayList<>();
-        for (LocalDate date = monthStart.toLocalDate(); !date.isAfter(today); date = date.plusDays(1)) {
+        for (LocalDate date = yearStart.toLocalDate(); !date.isAfter(today); date = date.plusDays(1)) {
             DailySeriesProjection row = dailyMap.get(date);
             dailyData.add(DailySeriesData.builder()
                     .date(date.toString())
@@ -60,12 +66,18 @@ public class VendorAnalyticsService {
                     .build());
         }
 
+        BigDecimal currentCommissionRate = storeRepository.findById(storeId)
+                .map(Store::getCommissionRate)
+                .filter(rate -> rate.compareTo(BigDecimal.ZERO) > 0)
+                .orElse(new BigDecimal("5.0"));
+
         return VendorAnalyticsResponse.builder()
                 .today(todayData)
                 .week(weekData)
                 .month(monthData)
+                .year(yearData)
                 .dailyData(dailyData)
-                .commissionRate(commissionRate)
+                .commissionRate(currentCommissionRate)
                 .build();
     }
 

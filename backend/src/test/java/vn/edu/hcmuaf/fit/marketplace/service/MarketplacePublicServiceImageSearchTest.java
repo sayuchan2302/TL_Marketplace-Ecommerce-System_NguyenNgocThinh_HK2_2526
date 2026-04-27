@@ -15,6 +15,7 @@ import vn.edu.hcmuaf.fit.marketplace.entity.Store;
 import vn.edu.hcmuaf.fit.marketplace.repository.CategoryRepository;
 import vn.edu.hcmuaf.fit.marketplace.repository.FlashSaleCampaignRepository;
 import vn.edu.hcmuaf.fit.marketplace.repository.FlashSaleItemRepository;
+import vn.edu.hcmuaf.fit.marketplace.repository.OrderRepository;
 import vn.edu.hcmuaf.fit.marketplace.repository.ProductRepository;
 import vn.edu.hcmuaf.fit.marketplace.repository.StoreRepository;
 
@@ -44,6 +45,9 @@ class MarketplacePublicServiceImageSearchTest {
     @Mock
     private FlashSaleItemRepository flashSaleItemRepository;
 
+    @Mock
+    private OrderRepository orderRepository;
+
     private MarketplacePublicService marketplacePublicService;
     private StubVisionSearchClient visionSearchClient;
     private VisionSearchProperties visionSearchProperties;
@@ -54,6 +58,7 @@ class MarketplacePublicServiceImageSearchTest {
         visionSearchProperties.setMaxCandidates(120);
         visionSearchProperties.setMaxUploadSizeBytes(5_242_880L);
         visionSearchClient = new StubVisionSearchClient(visionSearchProperties);
+        StorePerformanceMetricsService storePerformanceMetricsService = new StorePerformanceMetricsService(orderRepository);
 
         marketplacePublicService = new MarketplacePublicService(
                 productRepository,
@@ -61,6 +66,7 @@ class MarketplacePublicServiceImageSearchTest {
                 categoryRepository,
                 flashSaleCampaignRepository,
                 flashSaleItemRepository,
+                storePerformanceMetricsService,
                 visionSearchClient,
                 visionSearchProperties
         );

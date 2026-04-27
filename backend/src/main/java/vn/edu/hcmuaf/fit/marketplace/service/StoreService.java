@@ -32,6 +32,7 @@ public class StoreService {
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
     private final ReviewRepository reviewRepository;
+    private final StorePerformanceMetricsService storePerformanceMetricsService;
     private final AdminAuditLogService adminAuditLogService;
 
     @Autowired
@@ -40,12 +41,14 @@ public class StoreService {
             UserRepository userRepository,
             ProductRepository productRepository,
             ReviewRepository reviewRepository,
+            StorePerformanceMetricsService storePerformanceMetricsService,
             AdminAuditLogService adminAuditLogService
     ) {
         this.storeRepository = storeRepository;
         this.userRepository = userRepository;
         this.productRepository = productRepository;
         this.reviewRepository = reviewRepository;
+        this.storePerformanceMetricsService = storePerformanceMetricsService;
         this.adminAuditLogService = adminAuditLogService;
     }
 
@@ -53,9 +56,10 @@ public class StoreService {
             StoreRepository storeRepository,
             UserRepository userRepository,
             ProductRepository productRepository,
-            ReviewRepository reviewRepository
+            ReviewRepository reviewRepository,
+            StorePerformanceMetricsService storePerformanceMetricsService
     ) {
-        this(storeRepository, userRepository, productRepository, reviewRepository, null);
+        this(storeRepository, userRepository, productRepository, reviewRepository, storePerformanceMetricsService, null);
     }
 
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
@@ -454,6 +458,60 @@ public class StoreService {
         }
     }
 
+    @Transactional
+    public StoreResponse updateCommissionRateAsAdmin(
+            UUID storeId,
+            BigDecimal commissionRate,
+            UUID adminId,
+            String adminEmail
+    ) {
+        return updateCommissionRateAsAdmin(storeId, commissionRate, adminId, adminEmail, null);
+    }
+
+    @Transactional
+    public StoreResponse updateCommissionRateAsAdmin(
+            UUID storeId,
+            BigDecimal commissionRate,
+            UUID adminId,
+            String adminEmail,
+            String note
+    ) {
+        validateCommissionRate(commissionRate);
+        try {
+            Store store = storeRepository.findById(storeId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
+
+            BigDecimal normalizedRate = commissionRate.stripTrailingZeros();
+            store.setCommissionRate(normalizedRate);
+            Store saved = storeRepository.save(store);
+
+            String auditNote = note != null && !note.isBlank()
+                    ? note + " | rate=" + normalizedRate.toPlainString() + "%"
+                    : "rate=" + normalizedRate.toPlainString() + "%";
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "STORE",
+                    "UPDATE_COMMISSION_RATE",
+                    saved.getId(),
+                    true,
+                    auditNote
+            );
+            return toResponse(saved);
+        } catch (RuntimeException ex) {
+            writeAdminAuditLog(
+                    adminId,
+                    adminEmail,
+                    "STORE",
+                    "UPDATE_COMMISSION_RATE",
+                    storeId,
+                    false,
+                    ex.getMessage()
+            );
+            throw ex;
+        }
+    }
+
     private String generateSlug(String input) {
         if (input == null || input.isBlank()) {
             return "";
@@ -475,6 +533,8 @@ public class StoreService {
         Integer productCount = null;
         Integer liveProductCount = null;
         Integer responseRate = null;
+        StorePerformanceMetricsService.StorePerformanceMetrics performanceMetrics =
+                storePerformanceMetricsService.resolve(store.getId());
 
         if (includeAggregates) {
             UUID storeId = store.getId();
@@ -502,8 +562,8 @@ public class StoreService {
                 .address(store.getAddress())
                 .status(store.getStatus().name())
                 .approvalStatus(store.getApprovalStatus().name())
-                .totalSales(store.getTotalSales())
-                .totalOrders(store.getTotalOrders())
+                .totalSales(performanceMetrics.totalSales())
+                .totalOrders(performanceMetrics.totalOrders())
                 .rating(store.getRating())
                 .productCount(productCount)
                 .liveProductCount(liveProductCount)
@@ -519,6 +579,8 @@ public class StoreService {
         Integer productCount = null;
         Integer liveProductCount = null;
         Integer responseRate = null;
+        StorePerformanceMetricsService.StorePerformanceMetrics performanceMetrics =
+                storePerformanceMetricsService.resolve(store.getId());
 
         if (includeAggregates) {
             UUID storeId = store.getId();
@@ -568,8 +630,8 @@ public class StoreService {
                 .rejectionReason(store.getRejectionReason())
                 .approvedAt(store.getApprovedAt())
                 .approvedBy(store.getApprovedBy())
-                .totalSales(store.getTotalSales())
-                .totalOrders(store.getTotalOrders())
+                .totalSales(performanceMetrics.totalSales())
+                .totalOrders(performanceMetrics.totalOrders())
                 .rating(store.getRating())
                 .productCount(productCount)
                 .liveProductCount(liveProductCount)
@@ -581,6 +643,15 @@ public class StoreService {
 
     private static Boolean defaultIfNull(Boolean value, boolean fallback) {
         return value != null ? value : fallback;
+    }
+
+    private void validateCommissionRate(BigDecimal commissionRate) {
+        if (commissionRate == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Commission rate is required");
+        }
+        if (commissionRate.compareTo(BigDecimal.ZERO) <= 0 || commissionRate.compareTo(new BigDecimal("100")) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Commission rate must be greater than 0 and less than or equal to 100");
+        }
     }
 
     private void writeAdminAuditLog(
@@ -596,4 +667,3 @@ public class StoreService {
         adminAuditLogService.logAction(actorId, actorEmail, domain, action, targetId, success, note);
     }
 }
-

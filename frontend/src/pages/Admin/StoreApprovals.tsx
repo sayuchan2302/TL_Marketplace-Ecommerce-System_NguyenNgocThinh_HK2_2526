@@ -1,7 +1,7 @@
 import './AdminStores.css';
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Ban, Check, Eye, RotateCcw, Store, User, X } from 'lucide-react';
+import { Ban, Check, Eye, RotateCcw, Store, X } from 'lucide-react';
 import AdminLayout from './AdminLayout';
 import AdminConfirmDialog from './AdminConfirmDialog';
 import { AdminStateBlock } from './AdminStateBlocks';
@@ -77,6 +77,69 @@ const mapStore = (store: StoreProfile): ManagedStore => ({
   warehouseAddress: store.warehouseAddress || store.address || 'Chưa cấu hình kho lấy hàng',
 });
 
+const buildStoreProfileFields = (store: ManagedStore) => [
+  {
+    key: 'owner',
+    label: 'Chủ sở hữu',
+    value: store.applicantName || 'Chưa đăng ký chủ sở hữu',
+  },
+  {
+    key: 'email',
+    label: 'Email liên hệ',
+    value: store.applicantEmail || store.contactEmail || 'Chưa có email',
+  },
+  {
+    key: 'phone',
+    label: 'Số điện thoại',
+    value: store.phone || 'Chưa cập nhật',
+  },
+  {
+    key: 'warehouse',
+    label: 'Kho lấy hàng',
+    value: store.warehouseAddress,
+    span: 'full' as const,
+  },
+];
+
+const buildStoreSignalCards = (store: ManagedStore) => [
+  {
+    key: 'products',
+    label: 'Sản phẩm',
+    value: `${store.liveProductCount.toLocaleString('vi-VN')}/${store.productCount.toLocaleString('vi-VN')}`,
+    sub: 'đang hiển thị / tổng SKU',
+  },
+  {
+    key: 'orders',
+    label: 'Đơn hàng',
+    value: store.totalOrders.toLocaleString('vi-VN'),
+    sub: 'đơn đã ghi nhận',
+  },
+  {
+    key: 'gmv',
+    label: 'GMV',
+    value: formatCurrency(store.totalSales),
+    sub: 'doanh số toàn gian hàng',
+  },
+  {
+    key: 'rating',
+    label: 'Đánh giá',
+    value: store.rating.toFixed(1),
+    sub: 'trung bình khách hàng',
+  },
+  {
+    key: 'responseRate',
+    label: 'Phản hồi',
+    value: `${store.responseRate.toLocaleString('vi-VN')}%`,
+    sub: 'tỷ lệ phản hồi của shop',
+  },
+  {
+    key: 'createdAt',
+    label: 'Ngày tạo',
+    value: new Date(store.createdAt).toLocaleDateString('vi-VN'),
+    sub: 'mốc khởi tạo hồ sơ',
+  },
+];
+
 
 const StoreApprovals = () => {
   const { addToast } = useToast();
@@ -90,7 +153,9 @@ const StoreApprovals = () => {
   const [detailStore, setDetailStore] = useState<ManagedStore | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [commissionRateInput, setCommissionRateInput] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [savingCommissionRate, setSavingCommissionRate] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 8;
 
@@ -120,6 +185,12 @@ const StoreApprovals = () => {
       active = false;
     };
   }, [addToast, reloadKey]);
+
+  useEffect(() => {
+    setCommissionRateInput(
+      detailStore?.commissionRate != null ? String(detailStore.commissionRate) : '',
+    );
+  }, [detailStore?.id, detailStore?.commissionRate]);
 
   const filteredStores = useMemo(() => {
     let next = stores;
@@ -209,6 +280,59 @@ const StoreApprovals = () => {
     finally { setActionLoading(false); }
   };
 
+  const saveCommissionRate = async () => {
+    if (!detailStore) return;
+
+    const nextRate = Number.parseFloat(commissionRateInput);
+    if (!Number.isFinite(nextRate) || nextRate <= 0 || nextRate > 100) {
+      addToast('Tỷ lệ hoa hồng phải lớn hơn 0 và không vượt quá 100%.', 'error');
+      return;
+    }
+
+    setSavingCommissionRate(true);
+    try {
+      const updatedStore = await storeService.updateStoreCommissionRate(detailStore.id, {
+        commissionRate: nextRate,
+      });
+      const mappedStore = mapStore(updatedStore);
+      setStores((prev) =>
+        prev.map((store) =>
+          store.id === mappedStore.id
+            ? {
+                ...store,
+                ...mappedStore,
+                productCount: store.productCount,
+                liveProductCount: store.liveProductCount,
+                totalOrders: store.totalOrders,
+                totalSales: store.totalSales,
+                rating: store.rating,
+                responseRate: store.responseRate,
+              }
+            : store,
+        ),
+      );
+      setDetailStore((current) =>
+        current && current.id === mappedStore.id
+          ? {
+              ...current,
+              ...mappedStore,
+              productCount: current.productCount,
+              liveProductCount: current.liveProductCount,
+              totalOrders: current.totalOrders,
+              totalSales: current.totalSales,
+              rating: current.rating,
+              responseRate: current.responseRate,
+            }
+          : current,
+      );
+      addToast('Đã cập nhật tỷ lệ hoa hồng cho gian hàng.', 'success');
+    } catch (error: unknown) {
+      addToast(getUiErrorMessage(error, 'Không thể cập nhật tỷ lệ hoa hồng.'), 'error');
+    } finally {
+      setSavingCommissionRate(false);
+    }
+  };
+
   return (
     <AdminLayout
       title="Gian hàng"
@@ -249,8 +373,9 @@ const StoreApprovals = () => {
       <AdminConfirmDialog open={Boolean(confirmState)} title={confirmState?.mode === 'approve' ? 'Phê duyệt gian hàng' : confirmState?.mode === 'suspend' ? 'Tạm khóa gian hàng' : 'Mở lại gian hàng'} description={confirmState?.mode === 'approve' ? 'Chủ sở hữu sẽ được kích hoạt quyền người bán và gian hàng chuyển sang trạng thái hoạt động.' : confirmState?.mode === 'suspend' ? 'Gian hàng sẽ bị chặn vận hành tạm thời trên sàn cho đến khi mở lại.' : 'Gian hàng sẽ được mở lại hoạt động và tiếp tục hiển thị trên sàn.'} selectedItems={confirmState?.selectedItems} selectedNoun="gian hàng" confirmLabel={actionLoading ? 'Đang xử lý...' : confirmState?.mode === 'approve' ? 'Duyệt gian hàng' : confirmState?.mode === 'suspend' ? 'Tạm khóa gian hàng' : 'Mở lại gian hàng'} danger={confirmState?.mode === 'suspend'} onCancel={() => setConfirmState(null)} onConfirm={() => { if (!confirmState) return; if (confirmState.mode === 'approve') { void approveStores(); return; } void applyStoreOperatingChange(); }} />
       <Drawer open={Boolean(detailStore)} onClose={() => { setDetailStore(null); setRejectReason(''); }} className="store-drawer">{detailStore ? (<><PanelDrawerHeader eyebrow="Hồ sơ gian hàng" title={detailStore.name} onClose={() => { setDetailStore(null); setRejectReason(''); }} closeLabel="Đóng hồ sơ gian hàng" />
         <div className="drawer-body"><PanelDrawerSection title="Tổng quan gian hàng"><div className="store-drawer-hero"><div className="store-avatar large">{detailStore.logo ? <img src={detailStore.logo} alt={detailStore.name} /> : <Store size={22} />}</div><div><div className="admin-bold">{detailStore.name}</div><div className="admin-muted">{detailStore.slug}</div></div><div className="store-hero-pills"><span className={`admin-pill ${approvalTone(detailStore.approvalStatus)}`}>{approvalLabel(detailStore.approvalStatus)}</span><span className={`admin-pill ${operatingTone(detailStore.operatingStatus)}`}>{operatingLabel(detailStore.operatingStatus)}</span></div></div></PanelDrawerSection>
-          <PanelDrawerSection title="Hồ sơ và chủ sở hữu"><div className="admin-card-list"><div className="admin-card-row"><span className="admin-bold"><User size={14} style={{ verticalAlign: -2, marginRight: 6 }} /> Chủ sở hữu</span><span className="admin-muted">{detailStore.applicantName || 'Chưa đăng ký chủ sở hữu'}</span></div><div className="admin-card-row"><span className="admin-bold">Email liên hệ</span><span className="admin-muted">{detailStore.applicantEmail || detailStore.contactEmail || 'Chưa có email'}</span></div><div className="admin-card-row"><span className="admin-bold">Số điện thoại</span><span className="admin-muted">{detailStore.phone || 'Chưa cập nhật'}</span></div><div className="admin-card-row"><span className="admin-bold">Kho lấy hàng</span><span className="admin-muted">{detailStore.warehouseAddress}</span></div><div className="admin-card-row"><span className="admin-bold">Tỷ lệ hoa hồng</span><span className="admin-muted">{detailStore.commissionRate != null ? `${detailStore.commissionRate}%` : 'Chưa cấu hình'}</span></div></div></PanelDrawerSection>
-          <PanelDrawerSection title="Tín hiệu kinh doanh"><div className="store-signal-grid"><div className="store-signal-card"><span className="admin-muted small">Sản phẩm</span><strong>{`${detailStore.liveProductCount.toLocaleString('vi-VN')}/${detailStore.productCount.toLocaleString('vi-VN')}`}</strong><span className="admin-muted small">đang hiển thị / tổng SKU</span></div><div className="store-signal-card"><span className="admin-muted small">Đơn hàng</span><strong>{detailStore.totalOrders.toLocaleString('vi-VN')}</strong><span className="admin-muted small">đơn đã ghi nhận</span></div><div className="store-signal-card"><span className="admin-muted small">GMV</span><strong>{formatCurrency(detailStore.totalSales)}</strong><span className="admin-muted small">doanh số toàn gian hàng</span></div><div className="store-signal-card"><span className="admin-muted small">Đánh giá</span><strong>{detailStore.rating.toFixed(1)}</strong><span className="admin-muted small">trung bình khách hàng</span></div><div className="store-signal-card"><span className="admin-muted small">Phản hồi</span><strong>{`${detailStore.responseRate.toLocaleString('vi-VN')}%`}</strong><span className="admin-muted small">tỷ lệ phản hồi của shop</span></div><div className="store-signal-card"><span className="admin-muted small">Ngày tạo</span><strong>{new Date(detailStore.createdAt).toLocaleDateString('vi-VN')}</strong><span className="admin-muted small">mốc khởi tạo hồ sơ</span></div></div></PanelDrawerSection>
+          <PanelDrawerSection title="Hồ sơ và chủ sở hữu"><div className="store-profile-grid">{buildStoreProfileFields(detailStore).map((field) => (<div key={field.key} className={`store-profile-card ${field.span === 'full' ? 'full' : ''}`}><span className="admin-muted small">{field.label}</span><strong>{field.value}</strong></div>))}</div></PanelDrawerSection>
+          <PanelDrawerSection title="Quản lý phí sàn"><div className="store-commission-panel"><div><div className="admin-bold store-commission-title">Tỷ lệ hoa hồng áp dụng</div><p className="admin-muted small store-commission-note">Áp dụng cho các đơn mới của gian hàng này. Đơn cũ giữ nguyên snapshot phí đã tính trước đó.</p></div><div className="store-commission-controls"><label className="store-commission-input"><span className="admin-muted small">Phần trăm (%)</span><input className="admin-input" type="number" min="0.01" max="100" step="0.01" value={commissionRateInput} onChange={(e) => setCommissionRateInput(e.target.value)} aria-label="Tỷ lệ hoa hồng" /></label><button type="button" className="admin-primary-btn" onClick={() => void saveCommissionRate()} disabled={savingCommissionRate || !commissionRateInput.trim()}>{savingCommissionRate ? 'Đang lưu...' : 'Lưu tỷ lệ'}</button></div></div></PanelDrawerSection>
+          <PanelDrawerSection title="Tín hiệu kinh doanh"><div className="store-signal-grid">{buildStoreSignalCards(detailStore).map((card) => (<div key={card.key} className="store-signal-card"><span className="admin-muted small">{card.label}</span><strong>{card.value}</strong><span className="admin-muted small">{card.sub}</span></div>))}</div></PanelDrawerSection>
           <PanelDrawerSection title="Mô tả gian hàng"><p className="admin-muted store-description">{detailStore.description || 'Chưa có mô tả gian hàng.'}</p></PanelDrawerSection>
           <PanelDrawerSection title="Ghi chú kiểm duyệt">{detailStore.approvalStatus === 'PENDING' || detailStore.approvalStatus === 'REJECTED' ? (<textarea className="admin-textarea store-reject-note" rows={4} placeholder="Nhập ghi chú hoặc lý do từ chối hồ sơ gian hàng" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />) : (<div className="admin-card-list"><div className="admin-card-row"><span className="admin-bold">Ghi chú hiện tại</span><span className="admin-muted">{detailStore.rejectionReason || 'Chưa có ghi chú kiểm duyệt. Gian hàng đang hoạt động bình thường.'}</span></div></div>)}</PanelDrawerSection></div>
           <PanelDrawerFooter><button className="admin-ghost-btn" onClick={() => { setDetailStore(null); setRejectReason(''); }}>Đóng</button>{detailStore.approvalStatus === 'PENDING' ? <button className="admin-ghost-btn danger" disabled={actionLoading} onClick={() => void rejectStore()}><X size={14} />Từ chối hồ sơ</button> : null}{detailStore.approvalStatus === 'PENDING' ? <button className="admin-primary-btn" disabled={actionLoading} onClick={() => openConfirm('approve', [detailStore.id])}><Check size={14} />Duyệt gian hàng</button> : null}{detailStore.approvalStatus === 'APPROVED' && detailStore.operatingStatus === 'ACTIVE' ? <button className="admin-ghost-btn danger" onClick={() => openConfirm('suspend', [detailStore.id])}><Ban size={14} />Tạm khóa gian hàng</button> : null}{detailStore.approvalStatus === 'APPROVED' && detailStore.operatingStatus === 'SUSPENDED' ? <button className="admin-primary-btn" onClick={() => openConfirm('reactivate', [detailStore.id])}><RotateCcw size={14} />Mở lại gian hàng</button> : null}</PanelDrawerFooter></>) : null}</Drawer>

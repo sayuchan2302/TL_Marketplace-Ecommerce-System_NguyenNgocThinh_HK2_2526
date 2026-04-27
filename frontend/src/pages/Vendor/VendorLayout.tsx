@@ -77,7 +77,7 @@ const VendorLayout = ({ title, actions, children, hideTopbarTitle = false, bread
       logoText={layoutBrandName}
       sidebarDescription={t.sidebar.description}
       sidebarCtaLabel={t.sidebar.cta}
-      sidebarCtaTo="/vendor/settings"
+      sidebarCtaTo="/vendor/storefront"
       searchPlaceholder={t.searchPlaceholder}
       notificationsLabel={t.notifications}
       settingsLabel={t.settings}

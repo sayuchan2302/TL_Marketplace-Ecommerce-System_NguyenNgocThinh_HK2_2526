@@ -297,7 +297,7 @@ const VendorOrderDetail = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                     <span style={{ color: '#475569', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Percent size={12} />
-                      Phí sàn {order.commissionFee > 0 ? `(${Math.round((order.commissionFee / (order.subtotal + order.shippingFee)) * 100)}%)` : ''}
+                      Phí sàn {order.commissionRateApplied != null ? `(${order.commissionRateApplied}%)` : ''}
                     </span>
                     <strong style={{ color: '#d97706' }}>-{formatCurrency(order.commissionFee)}</strong>
                   </div>
@@ -418,3 +418,5 @@ const VendorOrderDetail = () => {
 };
 
 export default VendorOrderDetail;
+
+

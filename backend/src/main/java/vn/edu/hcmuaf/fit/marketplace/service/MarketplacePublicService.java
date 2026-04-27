@@ -62,6 +62,7 @@ public class MarketplacePublicService {
     private final CategoryRepository categoryRepository;
     private final FlashSaleCampaignRepository flashSaleCampaignRepository;
     private final FlashSaleItemRepository flashSaleItemRepository;
+    private final StorePerformanceMetricsService storePerformanceMetricsService;
     private final VisionSearchClient visionSearchClient;
     private final VisionSearchProperties visionSearchProperties;
 
@@ -71,6 +72,7 @@ public class MarketplacePublicService {
             CategoryRepository categoryRepository,
             FlashSaleCampaignRepository flashSaleCampaignRepository,
             FlashSaleItemRepository flashSaleItemRepository,
+            StorePerformanceMetricsService storePerformanceMetricsService,
             VisionSearchClient visionSearchClient,
             VisionSearchProperties visionSearchProperties
     ) {
@@ -79,6 +81,7 @@ public class MarketplacePublicService {
         this.categoryRepository = categoryRepository;
         this.flashSaleCampaignRepository = flashSaleCampaignRepository;
         this.flashSaleItemRepository = flashSaleItemRepository;
+        this.storePerformanceMetricsService = storePerformanceMetricsService;
         this.visionSearchClient = visionSearchClient;
         this.visionSearchProperties = visionSearchProperties;
     }
@@ -459,6 +462,8 @@ public class MarketplacePublicService {
     }
 
     private MarketplaceStoreCardResponse toStoreCardResponse(Store store) {
+        StorePerformanceMetricsService.StorePerformanceMetrics performanceMetrics =
+                storePerformanceMetricsService.resolve(store.getId());
         return MarketplaceStoreCardResponse.builder()
                 .id(store.getId())
                 .storeCode(resolveStoreCode(store))
@@ -466,7 +471,7 @@ public class MarketplacePublicService {
                 .slug(store.getSlug())
                 .logo(store.getLogo())
                 .rating(defaultDouble(store.getRating()))
-                .totalOrders(defaultInteger(store.getTotalOrders()))
+                .totalOrders(performanceMetrics.totalOrders())
                 .liveProductCount(Math.toIntExact(productRepository.countActiveByStoreId(store.getId())))
                 .build();
     }
@@ -727,7 +732,7 @@ public class MarketplacePublicService {
     }
 
     private boolean isOfficialStore(Store store) {
-        return store.getCommissionRate() != null && store.getCommissionRate().compareTo(new BigDecimal("3.0")) <= 0;
+        return false;
     }
 
     private boolean hasPublicAvailability(Product product, ProductVariant variant) {

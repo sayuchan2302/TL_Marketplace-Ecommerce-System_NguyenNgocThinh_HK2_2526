@@ -257,6 +257,12 @@ public class OrderService {
         }
     }
 
+    private record CommissionSnapshot(
+            BigDecimal rateApplied,
+            BigDecimal baseAmount,
+            BigDecimal feeAmount
+    ) {}
+
     // ─── Customer Methods ──────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
@@ -671,12 +677,15 @@ public class OrderService {
                 .discount(order.getDiscount())
                 .total(order.getTotal())
                 .commissionFee(order.getCommissionFee())
+                .commissionRateApplied(order.getCommissionRateApplied())
+                .commissionBaseAmount(order.getCommissionBaseAmount())
                 .vendorPayout(order.getVendorPayout())
                 .trackingNumber(order.getTrackingNumber())
                 .carrier(order.getShippingCarrier())
                 .note(order.getNote())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
+                .deliveredAt(order.getDeliveredAt())
                 .customer(order.getUser() != null ? AdminOrderResponse.CustomerInfo.builder()
                         .name(order.getUser().getName())
                         .email(order.getUser().getEmail())
@@ -1404,8 +1413,13 @@ public class OrderService {
             if (enforceVendorRules) {
                 ensureTrackingDataReady(order);
             }
+            if (order.getDeliveredAt() == null) {
+                order.setDeliveredAt(LocalDateTime.now());
+            }
             order.setPaidAt(LocalDateTime.now());
             order.setPaymentStatus(Order.PaymentStatus.PAID);
+        } else if (status != Order.OrderStatus.DELIVERED) {
+            order.setDeliveredAt(null);
         }
 
         Order savedOrder = orderRepository.save(order);
@@ -1701,6 +1715,8 @@ public class OrderService {
                 .trackingNumber(order.getTrackingNumber())
                 .shippingCarrier(order.getShippingCarrier())
                 .commissionFee(order.getCommissionFee())
+                .commissionRateApplied(order.getCommissionRateApplied())
+                .commissionBaseAmount(order.getCommissionBaseAmount())
                 .vendorPayout(order.getVendorPayout())
                 .customer(VendorOrderSummaryResponse.Customer.builder()
                         .name(order.getUser() != null ? order.getUser().getName() : null)
@@ -2293,7 +2309,8 @@ public class OrderService {
     ) {
         BigDecimal subtotal = preparedItems.stream().map(PreparedOrderItem::totalPrice).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal shippingFee = groupedByStore.values().stream().map(this::calculateShippingFee).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal commissionFee = groupedByStore.values().stream().map(this::calculateCommissionFee).reduce(BigDecimal.ZERO, BigDecimal::add);
+        CommissionSnapshot parentCommission = aggregateCommissionSnapshot(groupedByStore.values());
+        BigDecimal commissionFee = parentCommission.feeAmount();
 
         BigDecimal discount = discountApplication.totalDiscount();
         BigDecimal vendorPayout = subtotal.add(shippingFee).subtract(commissionFee).subtract(discount);
@@ -2312,6 +2329,8 @@ public class OrderService {
                 .customerVoucherId(discountApplication.customerVoucherId())
                 .note(buildParentOrderNote(request.getNote(), groupedByStore.size()))
                 .commissionFee(commissionFee)
+                .commissionRateApplied(parentCommission.rateApplied())
+                .commissionBaseAmount(parentCommission.baseAmount())
                 .vendorPayout(vendorPayout)
                 .build();
         parentOrder.calculateTotal();
@@ -2352,7 +2371,8 @@ public class OrderService {
             BigDecimal preCalculatedDiscount
     ) {
         BigDecimal shippingFee = calculateShippingFee(group);
-        BigDecimal commissionFee = calculateCommissionFee(group);
+        CommissionSnapshot commissionSnapshot = calculateCommissionSnapshot(group);
+        BigDecimal commissionFee = commissionSnapshot.feeAmount();
         BigDecimal discount = preCalculatedDiscount;
         BigDecimal vendorPayout = group.subtotal().add(shippingFee).subtract(commissionFee).subtract(discount);
 
@@ -2372,6 +2392,8 @@ public class OrderService {
                 .storeId(group.storeId())
                 .parentOrder(parentOrder)
                 .commissionFee(commissionFee)
+                .commissionRateApplied(commissionSnapshot.rateApplied())
+                .commissionBaseAmount(commissionSnapshot.baseAmount())
                 .vendorPayout(vendorPayout)
                 .build();
         order.calculateTotal();
@@ -2407,12 +2429,33 @@ public class OrderService {
     }
 
     private BigDecimal calculateCommissionFee(StoreOrderGroup group) {
+        return calculateCommissionSnapshot(group).feeAmount();
+    }
+
+    private CommissionSnapshot calculateCommissionSnapshot(StoreOrderGroup group) {
         Store store = storeRepository.findById(group.storeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Store not found"));
         BigDecimal commissionRatePercent = resolveCommissionRatePercent(store.getCommissionRate());
-        return group.subtotal()
+        BigDecimal commissionBaseAmount = group.subtotal();
+        BigDecimal commissionFee = commissionBaseAmount
                 .multiply(commissionRatePercent)
                 .divide(COMMISSION_RATE_DIVISOR, 2, RoundingMode.HALF_UP);
+        return new CommissionSnapshot(commissionRatePercent, commissionBaseAmount, commissionFee);
+    }
+
+    private CommissionSnapshot aggregateCommissionSnapshot(Iterable<StoreOrderGroup> groups) {
+        BigDecimal totalBase = BigDecimal.ZERO;
+        BigDecimal totalFee = BigDecimal.ZERO;
+        for (StoreOrderGroup group : groups) {
+            CommissionSnapshot snapshot = calculateCommissionSnapshot(group);
+            totalBase = totalBase.add(snapshot.baseAmount());
+            totalFee = totalFee.add(snapshot.feeAmount());
+        }
+
+        BigDecimal aggregatedRate = totalBase.compareTo(BigDecimal.ZERO) > 0
+                ? totalFee.multiply(COMMISSION_RATE_DIVISOR).divide(totalBase, 4, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        return new CommissionSnapshot(aggregatedRate, totalBase, totalFee);
     }
 
     private BigDecimal resolveCommissionRatePercent(BigDecimal rawRate) {
@@ -2544,8 +2587,14 @@ public class OrderService {
             if (parentOrder.getPaidAt() == null) {
                 parentOrder.setPaidAt(LocalDateTime.now());
             }
+            if (parentOrder.getDeliveredAt() == null) {
+                parentOrder.setDeliveredAt(LocalDateTime.now());
+            }
         } else if (allCancelled) {
             parentOrder.setPaymentStatus(Order.PaymentStatus.FAILED);
+            parentOrder.setDeliveredAt(null);
+        } else {
+            parentOrder.setDeliveredAt(null);
         }
 
         Order savedParent = orderRepository.save(parentOrder);

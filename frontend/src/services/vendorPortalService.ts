@@ -65,6 +65,8 @@ interface BackendVendorOrderDetail extends BackendVendorOrderSummary {
   paymentMethod?: string;
   paymentStatus?: string;
   note?: string;
+  commissionRateApplied?: number;
+  commissionBaseAmount?: number;
   items?: BackendVendorOrderItem[];
   shippingAddress?: BackendVendorAddress;
 }
@@ -132,6 +134,18 @@ interface BackendVendorAnalyticsResponse {
     previousOrders: number;
   };
   month: {
+    revenue: number;
+    payout: number;
+    commission: number;
+    orders: number;
+    avgOrderValue: number;
+    conversionRate: number;
+    previousRevenue: number;
+    previousPayout: number;
+    previousCommission: number;
+    previousOrders: number;
+  };
+  year: {
     revenue: number;
     payout: number;
     commission: number;
@@ -253,6 +267,8 @@ export interface VendorOrderDetailData {
   trackingNumber: string;
   carrier: string;
   commissionFee: number;
+  commissionRateApplied?: number;
+  commissionBaseAmount?: number;
   vendorPayout: number;
   timeline: Array<{ status: string; date: string; note: string }>;
 }
@@ -264,6 +280,38 @@ export interface VendorTopProduct {
   stock?: number;
   revenue: number;
   img: string;
+}
+
+export type VendorAnalyticsPeriod = 'week' | 'month' | 'year';
+
+export type VendorAnalyticsPeriodKey = 'today' | VendorAnalyticsPeriod;
+
+export interface VendorAnalyticsPeriodSnapshot {
+  revenue: number;
+  payout: number;
+  commission: number;
+  orders: number;
+  avgOrderValue: number;
+  conversionRate: number;
+  previousRevenue: number;
+  previousPayout: number;
+  previousCommission: number;
+  previousOrders: number;
+}
+
+export interface VendorAnalyticsChartDay {
+  date: string;
+  revenue: number;
+  payout: number;
+  commission: number;
+  orders: number;
+}
+
+export interface VendorAnalyticsData {
+  periods: Record<VendorAnalyticsPeriodKey, VendorAnalyticsPeriodSnapshot>;
+  dailyData: VendorAnalyticsChartDay[];
+  topProducts: VendorTopProduct[];
+  commissionRate: number;
 }
 
 export interface VendorSettingsData {
@@ -436,6 +484,8 @@ const mapOrderDetail = (order: BackendVendorOrderDetail): VendorOrderDetailData 
   trackingNumber: order.trackingNumber || '',
   carrier: order.shippingCarrier || '',
   commissionFee: Number(order.commissionFee ?? 0),
+  commissionRateApplied: order.commissionRateApplied != null ? Number(order.commissionRateApplied) : undefined,
+  commissionBaseAmount: order.commissionBaseAmount != null ? Number(order.commissionBaseAmount) : undefined,
   vendorPayout: Number(order.vendorPayout ?? 0),
   timeline: [
     {
@@ -662,11 +712,10 @@ export const vendorPortalService = {
     return toVendorSettings(updatedStore);
   },
 
-  async getAnalytics(params: { commissionRate?: number } = {}) {
-    const commissionRate = params.commissionRate ?? 5;
+  async getAnalytics(): Promise<VendorAnalyticsData> {
     const [analytics, topProducts] = await Promise.all([
       apiRequest<BackendVendorAnalyticsResponse>(
-        `/api/orders/my-store/analytics?commissionRate=${commissionRate}`,
+        '/api/orders/my-store/analytics',
         {},
         { auth: true },
       ),
@@ -714,6 +763,18 @@ export const vendorPortalService = {
           previousPayout: analytics.month.previousPayout,
           previousCommission: analytics.month.previousCommission,
           previousOrders: analytics.month.previousOrders,
+        },
+        year: {
+          revenue: analytics.year.revenue,
+          payout: analytics.year.payout,
+          commission: analytics.year.commission,
+          orders: analytics.year.orders,
+          avgOrderValue: analytics.year.avgOrderValue,
+          conversionRate: analytics.year.conversionRate,
+          previousRevenue: analytics.year.previousRevenue,
+          previousPayout: analytics.year.previousPayout,
+          previousCommission: analytics.year.previousCommission,
+          previousOrders: analytics.year.previousOrders,
         },
       },
       dailyData: analytics.dailyData.map((d) => ({

@@ -10,8 +10,6 @@ const VendorDashboard = lazy(() => import('./VendorDashboard'));
 const VendorOrders = lazy(() => import('./VendorOrders'));
 const VendorOrderDetail = lazy(() => import('./VendorOrderDetail'));
 const VendorProducts = lazy(() => import('./VendorProducts'));
-const VendorAnalytics = lazy(() => import('./VendorAnalytics'));
-const VendorSettings = lazy(() => import('./VendorSettings'));
 const VendorStorefront = lazy(() => import('./VendorStorefront'));
 const VendorPromotions = lazy(() => import('./VendorPromotions'));
 const VendorReviews = lazy(() => import('./VendorReviews'));
@@ -118,8 +116,8 @@ const VendorWorkspace = () => {
               <Route path="storefront" element={<VendorStorefront />} />
               <Route path="promotions" element={<VendorPromotions />} />
               <Route path="reviews" element={<VendorReviews />} />
-              <Route path="analytics" element={<VendorAnalytics />} />
-              <Route path="settings" element={<VendorSettings />} />
+              <Route path="analytics" element={<Navigate to="/vendor/dashboard#analytics" replace />} />
+              <Route path="settings" element={<Navigate to="/vendor/storefront" replace />} />
               <Route path="*" element={<Navigate to="/vendor/dashboard" replace />} />
             </Routes>
           </RouteLoader>

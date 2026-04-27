@@ -1,5 +1,5 @@
-import './Vendor.css';
-import { Link } from 'react-router-dom';
+﻿import './Vendor.css';
+import { Link, useLocation } from 'react-router-dom';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -10,22 +10,29 @@ import {
   Flame,
   Package,
   Plus,
-  Settings,
   ShoppingCart,
   Store,
   TicketPercent,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { startTransition, useEffect, useState } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import VendorLayout from './VendorLayout';
 import { getVendorOrderStatusLabel, getVendorOrderStatusTone } from './vendorOrderPresentation';
 import { formatCurrency } from '../../services/commissionService';
-import { vendorPortalService, type VendorDashboardData, type VendorOrderSummary } from '../../services/vendorPortalService';
+import {
+  vendorPortalService,
+  type VendorAnalyticsData,
+  type VendorAnalyticsPeriod,
+  type VendorDashboardData,
+  type VendorOrderSummary,
+} from '../../services/vendorPortalService';
 import { vendorVoucherService } from '../../services/vendorVoucherService';
 import { walletService, type VendorWallet } from '../../services/walletService';
 import { useToast } from '../../contexts/ToastContext';
 import { getUiErrorMessage } from '../../utils/errorMessage';
 import { AdminStateBlock } from '../Admin/AdminStateBlocks';
+import VendorAnalyticsSection from './components/analytics/VendorAnalyticsSection';
+import { emptyVendorAnalytics } from './vendorAnalyticsShared';
 import {
   resolveDetailRouteKey,
   toDisplayOrderCode,
@@ -47,6 +54,8 @@ const initialData: VendorDashboardData = {
 
 const VendorDashboard = () => {
   const { addToast } = useToast();
+  const location = useLocation();
+  const analyticsSectionRef = useRef<HTMLElement | null>(null);
   const [data, setData] = useState<VendorDashboardData>(initialData);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -54,16 +63,23 @@ const VendorDashboard = () => {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [runningVoucherCount, setRunningVoucherCount] = useState(0);
   const [wallet, setWallet] = useState<VendorWallet | null>(null);
+  const [dashboardReady, setDashboardReady] = useState(false);
+  const [analytics, setAnalytics] = useState<VendorAnalyticsData>(emptyVendorAnalytics);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<VendorAnalyticsPeriod>('week');
+  const [analyticsReloadKey, setAnalyticsReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
 
     const load = async () => {
       setLoading(true);
+      setDashboardReady(false);
       try {
         setLoadError('');
-        const [next, voucherResult, walletData] = await Promise.all([
-          vendorPortalService.getDashboardData(),
+        const next = await vendorPortalService.getDashboardData();
+        const [voucherResult, walletData] = await Promise.all([
           vendorVoucherService.list({ status: 'running', page: 1, size: 1 }),
           walletService.getMyWallet(),
         ]);
@@ -72,6 +88,7 @@ const VendorDashboard = () => {
           setData(next);
           setRunningVoucherCount(voucherResult.counts.running);
           setWallet(walletData);
+          setDashboardReady(true);
         });
       } catch (err: unknown) {
         if (!active) return;
@@ -79,6 +96,8 @@ const VendorDashboard = () => {
         setLoadError(message);
         setData(initialData);
         setRunningVoucherCount(0);
+        setWallet(null);
+        setDashboardReady(false);
         addToast(message, 'error');
       } finally {
         if (active) {
@@ -87,11 +106,63 @@ const VendorDashboard = () => {
       }
     };
 
-    load();
+    void load();
     return () => {
       active = false;
     };
   }, [addToast, reloadKey]);
+
+  useEffect(() => {
+    if (!dashboardReady) {
+      setAnalyticsLoading(false);
+      setAnalyticsError('');
+      setAnalytics(emptyVendorAnalytics);
+      return;
+    }
+
+    let active = true;
+
+    const loadAnalytics = async () => {
+      setAnalyticsLoading(true);
+      try {
+        setAnalyticsError('');
+        const next = await vendorPortalService.getAnalytics();
+        if (!active) return;
+        startTransition(() => {
+          setAnalytics(next);
+        });
+      } catch (err: unknown) {
+        if (!active) return;
+        const message = getUiErrorMessage(err, 'Không tải được biểu đồ doanh thu');
+        setAnalyticsError(message);
+        setAnalytics(emptyVendorAnalytics);
+      } finally {
+        if (active) {
+          setAnalyticsLoading(false);
+        }
+      }
+    };
+
+    void loadAnalytics();
+
+    return () => {
+      active = false;
+    };
+  }, [dashboardReady, analyticsReloadKey]);
+
+  useEffect(() => {
+    if (location.hash !== '#analytics') return;
+    const node = analyticsSectionRef.current;
+    if (!node) return;
+
+    const rafId = window.requestAnimationFrame(() => {
+      node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [location.hash, dashboardReady, analyticsLoading]);
 
   const stats = data.stats;
   const topSaleBase = Math.max(...data.topProducts.map((product) => product.sales), 1);
@@ -120,7 +191,7 @@ const VendorDashboard = () => {
       change: `${stats.totalRevenue > 0 ? '+' : ''}${Math.round(stats.totalRevenue / 1000000)}M`,
       tone: stats.totalRevenue > 0 ? 'up' : 'down',
       icon: <DollarSign size={18} />,
-      to: '/vendor/analytics',
+      to: '/vendor/dashboard#analytics',
     },
     {
       label: 'Tiền thực nhận',
@@ -128,7 +199,7 @@ const VendorDashboard = () => {
       change: `${stats.totalPayout > 0 ? '+' : ''}${Math.round(stats.totalPayout / 1000000)}M`,
       tone: stats.totalPayout > 0 ? 'up' : 'down',
       icon: <BarChart3 size={18} />,
-      to: '/vendor/analytics',
+      to: '/vendor/dashboard#analytics',
       cardTone: 'teal',
     },
     {
@@ -154,8 +225,7 @@ const VendorDashboard = () => {
     { label: 'Thêm sản phẩm', icon: <Plus size={18} />, to: '/vendor/products?action=add' },
     { label: 'Xử lý đơn hàng', icon: <ShoppingCart size={18} />, to: '/vendor/orders' },
     { label: 'Trang trí gian hàng', icon: <Store size={18} />, to: '/vendor/storefront' },
-    { label: 'Xem đối soát', icon: <BarChart3 size={18} />, to: '/vendor/analytics' },
-    { label: 'Cài đặt vận hành', icon: <Settings size={18} />, to: '/vendor/settings' },
+    { label: 'Xem đối soát', icon: <BarChart3 size={18} />, to: '/vendor/dashboard#analytics' },
   ];
 
   const handleConfirmOrder = async (order: VendorOrderSummary) => {
@@ -194,6 +264,7 @@ const VendorDashboard = () => {
           />
         </section>
       ) : null}
+
       <section className="vendor-stats grid-6">
         {statCards.map((item, idx) => (
           <motion.div
@@ -212,13 +283,37 @@ const VendorDashboard = () => {
               </div>
             </div>
             <p className="vendor-stat-label">{item.label}</p>
-            <Link to={item.to} className="vendor-stat-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
+            <Link
+              to={item.to}
+              className="vendor-stat-link"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
+            >
               <span className="vendor-stat-value">{item.value}</span>
               <ChevronRight size={14} style={{ color: '#94a3b8' }} />
             </Link>
           </motion.div>
         ))}
       </section>
+
+      {!loadError ? (
+        <motion.section
+          ref={analyticsSectionRef}
+          id="analytics"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.22, delay: 0.12 }}
+          style={{ marginBottom: 16, scrollMarginTop: 24 }}
+        >
+          <VendorAnalyticsSection
+            activePeriod={analyticsPeriod}
+            analytics={analytics}
+            loading={loading || analyticsLoading || !dashboardReady}
+            error={analyticsError}
+            onPeriodChange={setAnalyticsPeriod}
+            onRetry={() => setAnalyticsReloadKey((key) => key + 1)}
+          />
+        </motion.section>
+      ) : null}
 
       <motion.section
         className="commission-card"
@@ -322,13 +417,17 @@ const VendorDashboard = () => {
                       <button
                         className="vendor-primary-btn"
                         style={{ padding: '6px 12px', fontSize: 12 }}
-                        onClick={() => handleConfirmOrder(order)}
+                        onClick={() => void handleConfirmOrder(order)}
                         disabled={updatingId === order.id}
                       >
                         {updatingId === order.id ? 'Đang xử lý...' : 'Xác nhận đơn'}
                       </button>
                     )}
-                    <Link to={`/vendor/orders/${resolveDetailRouteKey(order.code, order.id)}`} className="vendor-icon-btn subtle" aria-label="Xem chi tiết">
+                    <Link
+                      to={`/vendor/orders/${resolveDetailRouteKey(order.code, order.id)}`}
+                      className="vendor-icon-btn subtle"
+                      aria-label="Xem chi tiết"
+                    >
                       <ChevronRight size={15} />
                     </Link>
                   </div>

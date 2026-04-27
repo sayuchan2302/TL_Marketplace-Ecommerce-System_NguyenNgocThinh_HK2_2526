@@ -123,6 +123,11 @@ interface StoreUpdateRequest {
   warehousePhone?: string;
 }
 
+interface AdminCommissionRateUpdateRequest {
+  commissionRate: number;
+  note?: string;
+}
+
 interface BackendUploadImageResponse {
   url?: string;
 }
@@ -267,13 +272,13 @@ const mapBackendStore = (store: BackendStoreResponse): StoreProfile => ({
   productCount: Number(store.productCount || 0),
   liveProductCount: Number(store.liveProductCount || 0),
   responseRate: Number(store.responseRate || 0),
-  isOfficial: Number(store.commissionRate || 5) <= 3,
+  isOfficial: false,
   status: store.status,
   approvalStatus: store.approvalStatus,
   createdAt: store.createdAt || new Date().toISOString(),
   applicantName: store.ownerName,
   applicantEmail: store.ownerEmail,
-  commissionRate: Number(store.commissionRate || 5),
+  commissionRate: store.commissionRate != null ? Number(store.commissionRate) : undefined,
   phone: store.phone,
   contactEmail: store.contactEmail,
   address: store.address,
@@ -450,6 +455,14 @@ export const storeService = {
       storeId: store.id,
       status: store.status,
     };
+  },
+
+  async updateStoreCommissionRate(storeId: string, payload: AdminCommissionRateUpdateRequest): Promise<StoreProfile> {
+    const store = await apiRequest<BackendStoreResponse>(`/api/stores/${storeId}/commission-rate`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }, { auth: true });
+    return mapBackendStore(store);
   },
 
   async updateMyStore(payload: StoreUpdateRequest): Promise<StoreProfile> {

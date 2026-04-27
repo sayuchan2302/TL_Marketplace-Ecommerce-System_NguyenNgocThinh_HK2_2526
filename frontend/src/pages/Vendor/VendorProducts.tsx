@@ -111,7 +111,7 @@ const VendorProducts = () => {
   return (
     <VendorLayout
       title="Sản phẩm và tồn kho"
-      breadcrumbs={['Kênh Người Bán', 'Kho']}
+      breadcrumbs={['Kênh Người Bán', 'Sản phẩm']}
       actions={(
         <button className="vendor-primary-btn" onClick={editor.openCreateDrawer} disabled={bulkActions.working}>
           <Plus size={16} style={{ marginRight: 6 }} />
