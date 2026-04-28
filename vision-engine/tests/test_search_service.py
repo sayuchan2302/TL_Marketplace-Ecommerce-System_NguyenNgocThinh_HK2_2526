@@ -51,6 +51,13 @@ class SearchServiceLogicTests(unittest.TestCase):
         def cursor(self):
             return self._cursor
 
+    @staticmethod
+    def _build_jpeg_payload(*, size: tuple[int, int] = (6, 6), color: str = "red") -> bytes:
+        image = Image.new("RGB", size, color=color)
+        buffer = BytesIO()
+        image.save(buffer, format="JPEG")
+        return buffer.getvalue()
+
     def test_validate_image_upload_rejects_non_image_content_type(self) -> None:
         with self.assertRaises(SearchValidationError) as context:
             validate_image_upload("application/pdf", b"fake")
@@ -58,9 +65,8 @@ class SearchServiceLogicTests(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 400)
         self.assertEqual(context.exception.metrics_status, "invalid_content_type")
 
-    def test_validate_image_upload_accepts_standard_image_content_types(self) -> None:
-        validate_image_upload("image/jpeg", b"jpeg-bytes")
-        validate_image_upload("image/png", b"png-bytes")
+    def test_validate_image_upload_accepts_valid_jpeg_with_image_content_type(self) -> None:
+        validate_image_upload("image/jpeg", self._build_jpeg_payload())
 
     def test_validate_image_upload_rejects_empty_payload(self) -> None:
         with self.assertRaises(SearchValidationError) as context:
@@ -77,11 +83,21 @@ class SearchServiceLogicTests(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 413)
         self.assertEqual(context.exception.metrics_status, "oversized_payload")
 
-    def test_validate_image_upload_accepts_octet_stream(self) -> None:
-        validate_image_upload("application/octet-stream", b"real-bytes")
+    def test_validate_image_upload_accepts_valid_jpeg_with_octet_stream(self) -> None:
+        validate_image_upload("application/octet-stream", self._build_jpeg_payload())
 
-    def test_validate_image_upload_accepts_missing_content_type(self) -> None:
-        validate_image_upload(None, b"real-bytes")
+    def test_validate_image_upload_accepts_valid_jpeg_with_missing_or_blank_content_type(self) -> None:
+        payload = self._build_jpeg_payload()
+
+        validate_image_upload(None, payload)
+        validate_image_upload("   ", payload)
+
+    def test_validate_image_upload_rejects_text_plain_content_type(self) -> None:
+        with self.assertRaises(SearchValidationError) as context:
+            validate_image_upload("text/plain", b"hello world")
+
+        self.assertEqual(context.exception.status_code, 400)
+        self.assertEqual(context.exception.metrics_status, "invalid_content_type")
 
     def test_decode_search_image_rejects_invalid_bytes(self) -> None:
         with self.assertRaises(SearchValidationError) as context:
@@ -112,19 +128,16 @@ class SearchServiceLogicTests(unittest.TestCase):
         self.assertEqual(decoded.size, (24, 12))
 
     def test_decode_search_image_accepts_valid_octet_stream_payload(self) -> None:
-        image = Image.new("RGB", (6, 6), color="yellow")
-        buffer = BytesIO()
-        image.save(buffer, format="JPEG")
+        payload = self._build_jpeg_payload(color="yellow")
+        validate_image_upload("application/octet-stream", payload)
 
-        decoded = decode_search_image(buffer.getvalue())
+        decoded = decode_search_image(payload)
 
         self.assertEqual(decoded.mode, "RGB")
 
-    def test_decode_search_image_rejects_text_payload_even_when_octet_stream_is_allowed(self) -> None:
-        validate_image_upload("application/octet-stream", b"hello world")
-
+    def test_validate_image_upload_rejects_text_payload_when_octet_stream(self) -> None:
         with self.assertRaises(SearchValidationError) as context:
-            decode_search_image(b"hello world")
+            validate_image_upload("application/octet-stream", b"hello world")
 
         self.assertEqual(context.exception.status_code, 400)
         self.assertEqual(context.exception.metrics_status, "decode_error")

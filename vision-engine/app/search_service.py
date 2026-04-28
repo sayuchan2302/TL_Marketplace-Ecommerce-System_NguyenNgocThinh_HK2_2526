@@ -64,6 +64,13 @@ def validate_image_upload(content_type: str | None, payload: bytes) -> None:
     if normalized_content_type.startswith("image/"):
         return
     if normalized_content_type in GENERIC_BINARY_CONTENT_TYPES:
+        try:
+            with Image.open(BytesIO(payload)) as probe:
+                probe.verify()
+        except Image.DecompressionBombError as exc:
+            raise SearchValidationError(413, "Image dimensions are too large", "oversized_payload") from exc
+        except Exception as exc:  # noqa: BLE001
+            raise SearchValidationError(400, "Unable to decode image", "decode_error") from exc
         return
     raise SearchValidationError(400, "Uploaded file must be an image", "invalid_content_type")
 
