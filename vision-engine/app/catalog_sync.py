@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from io import BytesIO
 import logging
+from threading import Lock
 from uuid import NAMESPACE_URL, UUID, uuid5
 import warnings
 
@@ -30,15 +31,29 @@ class CatalogSyncError(Exception):
         self.message = message
 
 
+class CatalogSyncInProgressError(Exception):
+    pass
+
+
 class CatalogSyncService:
     def __init__(self, clip_service: OpenClipService) -> None:
         self.clip_service = clip_service
         self.http = requests.Session()
+        self._run_lock = Lock()
 
     def close(self) -> None:
         self.http.close()
 
     def run_full_sync(self) -> SyncCatalogResponse:
+        if not self._run_lock.acquire(blocking=False):
+            raise CatalogSyncInProgressError("Catalog sync is already running")
+
+        try:
+            return self._run_full_sync_locked()
+        finally:
+            self._run_lock.release()
+
+    def _run_full_sync_locked(self) -> SyncCatalogResponse:
         sync_token = datetime.now(UTC).isoformat()
         images_processed = 0
         embeddings_inserted = 0
@@ -51,6 +66,15 @@ class CatalogSyncService:
         changed_images_by_product: dict[str, set[str]] = defaultdict(set)
 
         updated_since = self._resolve_updated_since_cursor()
+        if updated_since is not None:
+            missing_products = self._count_missing_public_products_from_index()
+            if missing_products > 0:
+                logger.warning(
+                    "catalog_sync switching_to_full_backfill missing_public_products=%s updated_since=%s",
+                    missing_products,
+                    updated_since.isoformat(),
+                )
+                updated_since = None
         incremental_mode = updated_since is not None
 
         page = 0
@@ -523,6 +547,39 @@ class CatalogSyncService:
             return None
         value = row[0]
         return value if isinstance(value, datetime) else None
+
+    def _count_missing_public_products_from_index(self) -> int:
+        sql = """
+            SELECT COUNT(*)
+            FROM products p
+            WHERE p.status = 'ACTIVE'
+              AND (p.approval_status = 'APPROVED' OR p.approval_status IS NULL)
+              AND p.store_id IS NOT NULL
+              AND EXISTS (
+                  SELECT 1
+                  FROM stores s
+                  WHERE s.id = p.store_id
+                    AND s.approval_status = 'APPROVED'
+                    AND s.status = 'ACTIVE'
+              )
+              AND EXISTS (
+                  SELECT 1
+                  FROM product_images pi
+                  WHERE pi.product_id = p.id
+                    AND LENGTH(TRIM(COALESCE(pi.url, ''))) > 0
+              )
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM vision.product_image_embeddings v
+                  WHERE v.backend_product_id = p.id
+                    AND v.is_active = true
+              )
+        """
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                row = cur.fetchone()
+        return int(row[0] or 0) if row else 0
 
     def _format_updated_since(self, value: datetime) -> str:
         normalized = value

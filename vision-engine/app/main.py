@@ -4,7 +4,7 @@ import logging
 
 from fastapi import FastAPI, File, Header, HTTPException, Query, UploadFile
 
-from .catalog_sync import CatalogSyncService
+from .catalog_sync import CatalogSyncInProgressError, CatalogSyncService
 from .config import settings
 from .db import bootstrap_database, close_database_pool, get_connection, initialize_database_pool
 from .models import IndexInfoResponse, SearchMetricsResponse, SearchResponse, SyncCatalogResponse
@@ -80,7 +80,10 @@ def sync_catalog(x_vision_internal_secret: str | None = Header(default=None)) ->
     _ensure_internal_secret(x_vision_internal_secret)
     if catalog_sync_service is None:
         raise HTTPException(status_code=503, detail="OpenCLIP model is not ready")
-    response = catalog_sync_service.run_full_sync()
+    try:
+        response = catalog_sync_service.run_full_sync()
+    except CatalogSyncInProgressError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if image_search_service is not None:
         image_search_service.refresh_index_info()
     return response
