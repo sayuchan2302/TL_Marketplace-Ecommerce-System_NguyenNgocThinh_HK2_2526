@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronRight, Clock, Search as SearchIcon, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -7,13 +7,8 @@ import ProductGrid from '../../components/ProductGrid/ProductGrid';
 import EmptySearchState from '../../components/EmptySearchState/EmptySearchState';
 import SearchImageLandingHero from './components/SearchImageLandingHero';
 import SearchImageQueryPanel from './components/SearchImageQueryPanel';
-import { ApiError } from '../../services/apiClient';
 import { searchService } from '../../services/searchService';
 import { CLIENT_TEXT } from '../../utils/texts';
-import {
-  extractImageFileFromClipboard,
-  imageSearchSession as pendingImageSearchSession,
-} from '../../utils/imageSearchSession';
 import { useClientViewState } from '../../hooks/useClientViewState';
 import {
   marketplaceService,
@@ -26,28 +21,11 @@ import {
   filterProducts,
   type ProductFilterState,
 } from '../../utils/productFilters';
+import { useSearchImageFlow } from './hooks/useSearchImageFlow';
 import './Search.css';
 
 const t = CLIENT_TEXT.search;
 type SearchScope = 'products' | 'stores';
-
-interface ImageSearchSession {
-  fileName: string;
-  previewUrl: string;
-  totalCandidates: number;
-  inferredCategory?: string;
-  inferredCategoryScore?: number;
-  categoryFilterApplied?: string;
-}
-
-const isEditableTarget = (target: EventTarget | null): boolean => {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-
-  const tagName = target.tagName.toLowerCase();
-  return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
-};
 
 const mapFlashSaleItemsToProducts = (items: MarketplaceFlashSaleItem[]): Product[] =>
   (items || []).map((item) => {
@@ -101,12 +79,6 @@ const Search = () => {
   const [productResults, setProductResults] = useState<Product[]>([]);
   const [storeResults, setStoreResults] = useState<MarketplaceStoreCard[]>([]);
   const [history, setHistory] = useState<string[]>(() => searchService.getRecentSearches());
-  const [imageSearchSession, setImageSearchSession] = useState<ImageSearchSession | null>(null);
-  const [imageSearchError, setImageSearchError] = useState<string | null>(null);
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const consumedImageTokenRef = useRef<string | null>(null);
-  const pasteTargetRef = useRef<HTMLDivElement | null>(null);
-  const isImageSearchMode = Boolean(imageSearchSession);
   const view = useClientViewState({
     validSortKeys: ['relevance', 'newest', 'bestseller', 'price-asc', 'price-desc', 'discount'],
   });
@@ -116,18 +88,27 @@ const Search = () => {
     setStoreResults([]);
   }, []);
 
-  const clearImageSearchState = useCallback((clearResults = false) => {
-    setImageSearchError(null);
-    setImageSearchSession((current) => {
-      if (current?.previewUrl) {
-        URL.revokeObjectURL(current.previewUrl);
-      }
-      return null;
-    });
-    if (clearResults) {
-      clearSearchResults();
-    }
-  }, [clearSearchResults]);
+  const {
+    imageSearchSession,
+    imageSearchError,
+    imageInputRef,
+    pasteTargetRef,
+    isImageSearchMode,
+    isAwaitingImageSearch,
+    clearImageSearchState,
+    triggerImagePicker,
+    focusPasteTarget,
+    handleImageInputChange,
+    handlePasteTargetPaste,
+  } = useSearchImageFlow({
+    imageSearchToken,
+    imageCategory,
+    imageStore,
+    setIsSearching,
+    setProductResults,
+    setStoreResults,
+    clearSearchResults,
+  });
 
   const refreshHistory = useCallback(() => {
     setHistory(searchService.getRecentSearches());
@@ -143,118 +124,6 @@ const Search = () => {
     params.set('scope', nextScope);
     setSearchParams(params);
   }, [clearImageSearchState, setSearchParams]);
-
-  const triggerImagePicker = () => {
-    imageInputRef.current?.click();
-  };
-
-  const focusPasteTarget = () => {
-    pasteTargetRef.current?.focus();
-  };
-
-  const handleImageSearch = useCallback(async (file: File) => {
-    setIsSearching(true);
-    setImageSearchError(null);
-    const previewUrl = URL.createObjectURL(file);
-
-    try {
-      const response = await marketplaceService.searchProductsByImage(file, 120, {
-        categorySlug: imageCategory || undefined,
-        storeSlug: imageStore || undefined,
-      });
-      setProductResults(response.items);
-      setStoreResults([]);
-      setImageSearchSession({
-        fileName: file.name,
-        previewUrl,
-        totalCandidates: response.totalCandidates,
-        inferredCategory: response.inferredCategory,
-        inferredCategoryScore: response.inferredCategoryScore,
-        categoryFilterApplied: response.categoryFilterApplied,
-      });
-    } catch (error) {
-      URL.revokeObjectURL(previewUrl);
-      clearSearchResults();
-      setImageSearchSession(null);
-      setImageSearchError(
-        error instanceof ApiError
-          ? error.message
-          : 'Không thể tìm kiếm bằng ảnh lúc này.',
-      );
-    } finally {
-      setIsSearching(false);
-    }
-  }, [clearSearchResults, imageCategory, imageStore]);
-
-  const handleImageInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) {
-      return;
-    }
-    await handleImageSearch(file);
-  };
-
-  const handleClipboardImage = useCallback(async (clipboardData: DataTransfer | null) => {
-    const file = extractImageFileFromClipboard(clipboardData);
-    if (!file) {
-      return false;
-    }
-
-    await handleImageSearch(file);
-    return true;
-  }, [handleImageSearch]);
-
-  const handlePasteTargetPaste = async (event: React.ClipboardEvent<HTMLDivElement>) => {
-    const pasted = await handleClipboardImage(event.clipboardData);
-    if (!pasted) {
-      return;
-    }
-    event.preventDefault();
-  };
-
-  useEffect(() => {
-    if (!imageSearchToken || consumedImageTokenRef.current === imageSearchToken) {
-      return;
-    }
-
-    const pendingFile = pendingImageSearchSession.consumePendingFile();
-    if (!pendingFile) {
-      return;
-    }
-
-    consumedImageTokenRef.current = imageSearchToken;
-    void handleImageSearch(pendingFile);
-  }, [handleImageSearch, imageSearchToken]);
-
-  useEffect(() => {
-    const handleWindowPaste = (event: ClipboardEvent) => {
-      if (isEditableTarget(event.target)) {
-        return;
-      }
-
-      const file = extractImageFileFromClipboard(event.clipboardData ?? null);
-      if (!file) {
-        return;
-      }
-
-      event.preventDefault();
-      void handleImageSearch(file);
-    };
-
-    window.addEventListener('paste', handleWindowPaste);
-    return () => {
-      window.removeEventListener('paste', handleWindowPaste);
-    };
-  }, [handleImageSearch]);
-
-  useEffect(() => {
-    return () => {
-      if (imageSearchSession?.previewUrl) {
-        URL.revokeObjectURL(imageSearchSession.previewUrl);
-      }
-    };
-  }, [imageSearchSession?.previewUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -386,7 +255,6 @@ const Search = () => {
     updateSearchParams(query, nextScope);
   };
 
-  const isAwaitingImageSearch = Boolean(imageSearchToken) && !isImageSearchMode && pendingImageSearchSession.hasPendingFile();
   const isImageSearchPage = isImageSearchMode || isAwaitingImageSearch;
   const effectiveSortKey = isImageSearchPage && !searchParams.get('sort') ? 'relevance' : view.sortKey;
   const showLanding = !query && !isFlashSaleMode && !isImageSearchPage;
@@ -691,4 +559,5 @@ const Search = () => {
 };
 
 export default Search;
+
 
