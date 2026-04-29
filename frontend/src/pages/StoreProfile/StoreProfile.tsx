@@ -469,11 +469,25 @@ const StoreProfilePage = () => {
     if (!productsPanel) return;
 
     const headerOffset = 96;
-    const targetTop = productsPanel.getBoundingClientRect().top + window.scrollY - headerOffset;
-    window.scrollTo({
-      top: Math.max(0, targetTop),
-      behavior: 'smooth',
-    });
+    const scrollingElement = document.scrollingElement as HTMLElement | null;
+    const appContainer = document.querySelector<HTMLElement>('.app-container');
+    const panelRect = productsPanel.getBoundingClientRect();
+    const viewportTargetTop = panelRect.top + window.scrollY - headerOffset;
+
+    window.scrollTo({ top: Math.max(0, viewportTargetTop), left: 0, behavior: 'auto' });
+    document.documentElement.scrollTo({ top: Math.max(0, viewportTargetTop), left: 0, behavior: 'auto' });
+    document.body.scrollTo({ top: Math.max(0, viewportTargetTop), left: 0, behavior: 'auto' });
+    scrollingElement?.scrollTo({ top: Math.max(0, viewportTargetTop), left: 0, behavior: 'auto' });
+
+    if (appContainer) {
+      const containerRect = appContainer.getBoundingClientRect();
+      const containerTargetTop = panelRect.top - containerRect.top + appContainer.scrollTop - headerOffset;
+      appContainer.scrollTo({ top: Math.max(0, containerTargetTop), left: 0, behavior: 'auto' });
+
+      window.requestAnimationFrame(() => {
+        appContainer.scrollTo({ top: Math.max(0, containerTargetTop), left: 0, behavior: 'auto' });
+      });
+    }
   }, []);
 
   const handleProductPageChange = useCallback(async (nextPage: number) => {

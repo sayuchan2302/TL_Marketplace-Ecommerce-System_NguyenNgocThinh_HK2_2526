@@ -61,6 +61,8 @@ app:
       styles-path: ${APP_SEED_GAP_STYLES_PATH:backend/src/main/resources/product/styles.csv}
       images-path: ${APP_SEED_GAP_IMAGES_PATH:backend/src/main/resources/product/images.csv}
       clean-before-import: ${APP_SEED_GAP_CLEAN_BEFORE_IMPORT:true}
+      report-enabled: ${APP_SEED_GAP_REPORT_ENABLED:false}
+      report-output-dir: ${APP_SEED_GAP_REPORT_OUTPUT_DIR:backend/target/gap-coverage}
   chatbot:
     ai-fallback-enabled: ${APP_CHATBOT_AI_FALLBACK_ENABLED:false}
     direct-line-secret: ${BOT_DIRECT_LINE_SECRET:}

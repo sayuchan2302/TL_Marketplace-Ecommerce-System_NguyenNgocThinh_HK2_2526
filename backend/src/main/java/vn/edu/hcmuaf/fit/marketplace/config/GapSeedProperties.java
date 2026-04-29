@@ -15,4 +15,6 @@ public class GapSeedProperties {
     private String stylesPath = "backend/src/main/resources/seeder/gap/styles.csv";
     private String imagesPath = "backend/src/main/resources/seeder/gap/images.csv";
     private boolean cleanBeforeImport = true;
+    private boolean reportEnabled = false;
+    private String reportOutputDir = "backend/target/gap-coverage";
 }

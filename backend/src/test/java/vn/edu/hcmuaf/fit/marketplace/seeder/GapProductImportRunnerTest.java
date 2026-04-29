@@ -1,5 +1,7 @@
 package vn.edu.hcmuaf.fit.marketplace.seeder;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,6 +25,7 @@ import vn.edu.hcmuaf.fit.marketplace.service.ProductService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +66,7 @@ class GapProductImportRunnerTest {
     private FakeProductService productService;
     private GapSeedProperties properties;
     private GapProductImportRunner runner;
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @BeforeEach
     void setUp() {
@@ -387,6 +391,117 @@ class GapProductImportRunnerTest {
         assertEquals(menShirtLeaf.getId(), categoryBySlug.get("gap-603"));
     }
 
+    @Test
+    void importSkipsExistingGapSlugsWithoutCreatingDuplicates() throws IOException {
+        Category menRoot = category("men", null);
+        Category menLeaf = category("men-ao-thun", menRoot);
+        Store store = Store.builder().id(UUID.randomUUID()).build();
+
+        Path styles = writeStylesCsv(List.of(
+                "701,Men,Apparel,Topwear,Tshirts,White,Summer,2026,Casual,Existing Tee",
+                "702,Men,Apparel,Topwear,Tshirts,Black,Summer,2026,Casual,New Tee"
+        ));
+        Path images = writeImagesCsv(List.of(
+                "701.jpg,https://img.local/701.jpg",
+                "702.jpg,https://img.local/702.jpg"
+        ));
+
+        Product existing = new Product();
+        existing.setSlug("gap-701");
+
+        properties.setTargetCount(2);
+        properties.setStylesPath(styles.toString());
+        properties.setImagesPath(images.toString());
+        properties.setCleanBeforeImport(false);
+
+        when(storeRepository.findByApprovalStatusAndStatus(Store.ApprovalStatus.APPROVED, Store.StoreStatus.ACTIVE))
+                .thenReturn(List.of(store));
+        when(categoryRepository.findAll()).thenReturn(List.of(menRoot, menLeaf));
+        when(productRepository.findBySlugStartingWithIgnoreCase(anyString())).thenReturn(List.of(existing));
+
+        runner.runImport();
+
+        assertEquals(1, productService.requests.size());
+        assertEquals("gap-702", productService.requests.get(0).getSlug());
+    }
+
+    @Test
+    void importSkipsUnsupportedAccessorySourceGapRows() throws IOException {
+        Category accessoriesRoot = category("accessories", null);
+        Category bagLeaf = category("tui-xach", accessoriesRoot);
+        Category watchLeaf = category("dong-ho", accessoriesRoot);
+        Category jewelryLeaf = category("trang-suc", accessoriesRoot);
+        Store store = Store.builder().id(UUID.randomUUID()).build();
+
+        Path styles = writeStylesCsv(List.of(
+                "801,Women,Accessories,Fashion Accessories,Accessories,Gold,Summer,2026,Casual,Rose Gold Watch",
+                "802,Women,Accessories,Fashion Accessories,Accessories,Silver,Summer,2026,Casual,Statement Necklace"
+        ));
+        Path images = writeImagesCsv(List.of(
+                "801.jpg,https://img.local/801.jpg",
+                "802.jpg,https://img.local/802.jpg"
+        ));
+
+        properties.setTargetCount(2);
+        properties.setStylesPath(styles.toString());
+        properties.setImagesPath(images.toString());
+        properties.setCleanBeforeImport(false);
+
+        when(storeRepository.findByApprovalStatusAndStatus(Store.ApprovalStatus.APPROVED, Store.StoreStatus.ACTIVE))
+                .thenReturn(List.of(store));
+        when(categoryRepository.findAll()).thenReturn(List.of(accessoriesRoot, bagLeaf, watchLeaf, jewelryLeaf));
+        when(productRepository.findBySlugStartingWithIgnoreCase(anyString())).thenReturn(List.of());
+
+        runner.runImport();
+
+        assertTrue(productService.requests.isEmpty());
+    }
+
+    @Test
+    void importReportPreservesBeforeSnapshotWhenCleanBeforeImportIsEnabled() throws IOException {
+        Category menRoot = category("men", null);
+        Category poloLeaf = category("men-ao-polo", menRoot);
+        Category teeLeaf = category("men-ao-thun", menRoot);
+        Store store = Store.builder().id(UUID.randomUUID()).build();
+
+        Path styles = writeStylesCsv(List.of(
+                "901,Men,Apparel,Topwear,Tshirts,White,Summer,2026,Casual,Report Tee"
+        ));
+        Path images = writeImagesCsv(List.of(
+                "901.jpg,https://img.local/901.jpg"
+        ));
+
+        Product beforeProduct = product("gap-existing", teeLeaf);
+        Product afterExisting = product("gap-existing", teeLeaf);
+        Product afterRecovered = product("gap-recovered", poloLeaf);
+
+        properties.setTargetCount(1);
+        properties.setStylesPath(styles.toString());
+        properties.setImagesPath(images.toString());
+        properties.setCleanBeforeImport(true);
+        properties.setReportEnabled(true);
+        properties.setReportOutputDir(tempDir.resolve("gap-coverage").toString());
+
+        when(storeRepository.findByApprovalStatusAndStatus(Store.ApprovalStatus.APPROVED, Store.StoreStatus.ACTIVE))
+                .thenReturn(List.of(store));
+        when(categoryRepository.findAll()).thenReturn(List.of(menRoot, poloLeaf, teeLeaf));
+        when(productRepository.findBySlugStartingWithIgnoreCase("gap-"))
+                .thenReturn(List.of(beforeProduct), List.of(afterExisting, afterRecovered));
+        when(productRepository.findAllPublicProducts())
+                .thenReturn(List.of(beforeProduct), List.of(afterExisting, afterRecovered));
+        when(productRepository.save(org.mockito.ArgumentMatchers.any(Product.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        runner.runImport();
+
+        JsonNode summary = objectMapper.readTree(tempDir.resolve("gap-coverage").resolve("coverage-after.json").toFile())
+                .path("summary");
+
+        assertEquals(1, summary.path("nonEmptyLeafCategoryCountBefore").asInt());
+        assertEquals(2, summary.path("nonEmptyLeafCategoryCountAfter").asInt());
+        assertEquals(List.of("men-ao-polo"), jsonTextList(summary.path("newlyFilledCategories")));
+    }
+
     private Category category(String slug, Category parent) {
         Category category = new Category();
         category.setId(UUID.randomUUID());
@@ -395,6 +510,15 @@ class GapProductImportRunnerTest {
         category.setParent(parent);
         category.setIsVisible(true);
         return category;
+    }
+
+    private Product product(String slug, Category category) {
+        Product product = new Product();
+        product.setId(UUID.randomUUID());
+        product.setSlug(slug);
+        product.setName(slug);
+        product.setCategory(category);
+        return product;
     }
 
     private Path writeStylesCsv(List<String> rows) throws IOException {
@@ -434,5 +558,13 @@ class GapProductImportRunnerTest {
             product.setId(UUID.randomUUID());
             return product;
         }
+    }
+
+    private List<String> jsonTextList(JsonNode arrayNode) {
+        List<String> values = new ArrayList<>();
+        for (JsonNode node : arrayNode) {
+            values.add(node.asText());
+        }
+        return values;
     }
 }

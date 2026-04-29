@@ -2,9 +2,9 @@ package vn.edu.hcmuaf.fit.marketplace.seeder;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.hcmuaf.fit.marketplace.config.GapSeedProperties;
@@ -47,11 +47,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
-@ConditionalOnProperty(prefix = "app.seed.gap", name = "enabled", havingValue = "true")
-public class GapProductImportRunner {
+public class GapProductImportRunner implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(GapProductImportRunner.class);
     private static final Set<String> ALLOWED_MASTER_CATEGORIES = Set.of("apparel", "accessories");
@@ -149,7 +149,10 @@ public class GapProductImportRunner {
     private final CategoryRepository categoryRepository;
     private final FlashSaleCampaignRepository flashSaleCampaignRepository;
     private final FlashSaleItemRepository flashSaleItemRepository;
+    private final GapCategoryMapper categoryMapper;
+    private final GapCoverageReporter coverageReporter;
 
+    @Autowired
     public GapProductImportRunner(
             GapSeedProperties properties,
             ProductService productService,
@@ -160,6 +163,32 @@ public class GapProductImportRunner {
             FlashSaleCampaignRepository flashSaleCampaignRepository,
             FlashSaleItemRepository flashSaleItemRepository
     ) {
+        this(
+                properties,
+                productService,
+                productRepository,
+                productVariantRepository,
+                storeRepository,
+                categoryRepository,
+                flashSaleCampaignRepository,
+                flashSaleItemRepository,
+                new GapCategoryMapper(),
+                new GapCoverageReporter()
+        );
+    }
+
+    GapProductImportRunner(
+            GapSeedProperties properties,
+            ProductService productService,
+            ProductRepository productRepository,
+            ProductVariantRepository productVariantRepository,
+            StoreRepository storeRepository,
+            CategoryRepository categoryRepository,
+            FlashSaleCampaignRepository flashSaleCampaignRepository,
+            FlashSaleItemRepository flashSaleItemRepository,
+            GapCategoryMapper categoryMapper,
+            GapCoverageReporter coverageReporter
+    ) {
         this.properties = properties;
         this.productService = productService;
         this.productRepository = productRepository;
@@ -168,12 +197,21 @@ public class GapProductImportRunner {
         this.categoryRepository = categoryRepository;
         this.flashSaleCampaignRepository = flashSaleCampaignRepository;
         this.flashSaleItemRepository = flashSaleItemRepository;
+        this.categoryMapper = categoryMapper;
+        this.coverageReporter = coverageReporter;
     }
 
-    @EventListener(ApplicationReadyEvent.class)
+    @Override
     @Transactional
-    public void onApplicationReady() {
+    public void run(ApplicationArguments args) {
         if (!EXECUTED.compareAndSet(false, true)) {
+            return;
+        }
+        if (properties.isReportEnabled() && !properties.isEnabled()) {
+            runBaselineCoverageReport();
+            return;
+        }
+        if (!properties.isEnabled()) {
             return;
         }
         runImport();
@@ -223,7 +261,22 @@ public class GapProductImportRunner {
             return;
         }
 
-        List<Product> existingBatch = findExistingImportedProducts();
+        List<Product> importedProductsBefore = List.copyOf(findExistingImportedProducts());
+        List<Product> existingBatch = importedProductsBefore;
+        List<StyleAnalysis> sourceAnalyses = analyzeSourceRows(leafCategories, imageLinks, styleRows);
+        List<Product> publicImportedProductsBefore = List.copyOf(findPublicImportedProducts());
+        GapCoverageReporter.CoverageSnapshot beforeSnapshot = null;
+        if (properties.isReportEnabled()) {
+            beforeSnapshot = captureCoverageSnapshot(
+                    "before",
+                    leafCategories,
+                    sourceAnalyses,
+                    importedProductsBefore,
+                    publicImportedProductsBefore
+            );
+            writeBeforeCoverageReport(beforeSnapshot);
+        }
+
         if (properties.isCleanBeforeImport() && !existingBatch.isEmpty()) {
             removeExistingImportedProducts(existingBatch);
             existingBatch = List.of();
@@ -235,49 +288,37 @@ public class GapProductImportRunner {
                 .map(slug -> slug.trim().toLowerCase(Locale.ROOT))
                 .collect(Collectors.toSet());
 
-        Map<String, LeafCategory> leafBySlug = leafCategories.stream()
-                .collect(Collectors.toMap(LeafCategory::slug, leaf -> leaf));
-
-        Map<String, List<LeafCategory>> leavesByRoot = leafCategories.stream()
-                .collect(Collectors.groupingBy(
-                        LeafCategory::rootSlug,
-                        LinkedHashMap::new,
-                        Collectors.collectingAndThen(Collectors.toList(), list -> {
-                            list.sort(Comparator.comparing(LeafCategory::slug));
-                            return list;
-                        })
-                ));
-
-        List<Candidate> candidates = new ArrayList<>();
         int skippedMissingImages = 0;
-        for (StyleRow row : styleRows) {
-            if (!ALLOWED_MASTER_CATEGORIES.contains(normalizedToken(row.masterCategory()))) {
+        List<StyleAnalysis> candidates = new ArrayList<>();
+        for (StyleAnalysis analysis : sourceAnalyses) {
+            if (existingSlugs.contains(analysis.productSlug())) {
                 continue;
             }
-
-            String slug = slugForStyle(row.styleId());
-            if (existingSlugs.contains(slug)) {
-                continue;
-            }
-
-            LeafCategory preferredLeaf = resolvePreferredLeaf(row, leafBySlug, leavesByRoot, leafCategories);
-            List<String> imageUrls = resolveCandidateImageUrls(imageLinks.get(row.styleId()));
-            if (imageUrls.isEmpty()) {
+            if (!analysis.hasImages()) {
                 skippedMissingImages++;
                 continue;
             }
-            candidates.add(new Candidate(row, preferredLeaf, imageUrls));
+            if (!analysis.isImportable()) {
+                continue;
+            }
+            candidates.add(analysis);
         }
 
         if (candidates.isEmpty()) {
             log.warn("GAP import skipped because no eligible candidates were found.");
+            if (properties.isReportEnabled() && beforeSnapshot != null) {
+                writeAfterCoverageReport(beforeSnapshot, leafCategories, sourceAnalyses);
+            }
             ensureDefaultFlashSaleCampaign();
             return;
         }
 
-        List<AssignedCandidate> selected = allocateCandidates(candidates, leafCategories, targetCount);
+        List<StyleAnalysis> selected = selectCandidatesForImport(candidates, targetCount);
         if (selected.isEmpty()) {
             log.warn("GAP import skipped because allocation returned no candidates.");
+            if (properties.isReportEnabled() && beforeSnapshot != null) {
+                writeAfterCoverageReport(beforeSnapshot, leafCategories, sourceAnalyses);
+            }
             ensureDefaultFlashSaleCampaign();
             return;
         }
@@ -287,23 +328,23 @@ public class GapProductImportRunner {
         Map<UUID, Integer> countsByCategory = new HashMap<>();
 
         for (int index = 0; index < selected.size(); index++) {
-            AssignedCandidate assigned = selected.get(index);
+            StyleAnalysis analysis = selected.get(index);
             Store store = approvedActiveStores.get(index % approvedActiveStores.size());
-            ProductRequest request = buildProductRequest(assigned);
+            ProductRequest request = buildProductRequest(analysis);
             try {
                 Product created = productService.createForStore(request, store.getId());
-                applyGalleryImages(created, assigned.candidate().imageUrls());
-                if (isFeaturedCandidate(assigned.candidate().row().styleId())) {
+                applyGalleryImages(created, analysis.imageUrls());
+                if (isFeaturedCandidate(analysis.row().styleId())) {
                     created.setIsFeatured(true);
                 }
                 productRepository.save(created);
                 imported++;
-                countsByCategory.merge(assigned.assignedLeaf().id(), 1, Integer::sum);
+                countsByCategory.merge(analysis.preferredLeaf().id(), 1, Integer::sum);
             } catch (RuntimeException ex) {
                 skipped++;
                 log.warn(
                         "Skip GAP style {} due to import error: {}",
-                        assigned.candidate().row().styleId(),
+                        analysis.row().styleId(),
                         ex.getMessage()
                 );
             }
@@ -319,7 +360,52 @@ public class GapProductImportRunner {
                 leafCategories.size()
         );
         log.info("GAP import category coverage: {} leaf categories received products.", countsByCategory.size());
+        if (properties.isReportEnabled() && beforeSnapshot != null) {
+            writeAfterCoverageReport(beforeSnapshot, leafCategories, sourceAnalyses);
+        }
         ensureDefaultFlashSaleCampaign();
+    }
+
+    private void runBaselineCoverageReport() {
+        List<LeafCategory> leafCategories = loadReportLeafCategories();
+        if (leafCategories.isEmpty()) {
+            log.warn("GAP coverage report skipped because no leaf categories under men/women/accessories were found.");
+            return;
+        }
+
+        Path stylesPath;
+        Path imagesPath;
+        try {
+            stylesPath = resolveInputPath(properties.getStylesPath());
+            imagesPath = resolveInputPath(properties.getImagesPath());
+        } catch (IllegalStateException ex) {
+            log.error("GAP coverage report skipped: {}", ex.getMessage());
+            return;
+        }
+
+        Map<Long, List<String>> imageLinks;
+        List<StyleRow> styleRows;
+        try {
+            imageLinks = loadImageLinks(imagesPath);
+            styleRows = loadStyleRows(stylesPath);
+        } catch (IOException ex) {
+            log.error("GAP coverage report failed while reading CSV files.", ex);
+            return;
+        }
+
+        List<Product> importedProducts = List.copyOf(findExistingImportedProducts());
+        List<Product> publicImportedProducts = List.copyOf(findPublicImportedProducts());
+        List<StyleAnalysis> sourceAnalyses = analyzeSourceRows(leafCategories, imageLinks, styleRows);
+        GapCoverageReporter.CoverageSnapshot snapshot = captureCoverageSnapshot(
+                "before",
+                leafCategories,
+                sourceAnalyses,
+                importedProducts,
+                publicImportedProducts
+        );
+        if (snapshot != null) {
+            writeBeforeCoverageReport(snapshot);
+        }
     }
 
     private void ensureDefaultFlashSaleCampaign() {
@@ -461,6 +547,37 @@ public class GapProductImportRunner {
         return leaves;
     }
 
+    private List<LeafCategory> loadReportLeafCategories() {
+        Map<String, ImportCategoryDefinition> definitionsBySlug = IMPORT_CATEGORY_DEFINITIONS.stream()
+                .collect(Collectors.toMap(
+                        definition -> normalizedToken(definition.slug()),
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+        Set<String> parentSlugs = IMPORT_CATEGORY_DEFINITIONS.stream()
+                .map(ImportCategoryDefinition::parentSlug)
+                .filter(parentSlug -> parentSlug != null && !parentSlug.isBlank())
+                .map(this::normalizedToken)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<LeafCategory> leaves = new ArrayList<>();
+        for (ImportCategoryDefinition definition : IMPORT_CATEGORY_DEFINITIONS) {
+            String slug = normalizedToken(definition.slug());
+            if (parentSlugs.contains(slug)) {
+                continue;
+            }
+            String rootSlug = resolveDefinitionRootSlug(slug, definitionsBySlug);
+            if (!ALLOWED_ROOTS.contains(rootSlug)) {
+                continue;
+            }
+            String parentSlug = definition.parentSlug() == null ? "" : normalizedToken(definition.parentSlug());
+            leaves.add(new LeafCategory(null, slug, null, rootSlug));
+        }
+        leaves.sort(Comparator.comparing(LeafCategory::slug));
+        return leaves;
+    }
+
     private void ensureImportCategoryTree() {
         List<Category> categories = new ArrayList<>(categoryRepository.findAll());
         Map<String, Category> categoryBySlug = categories.stream()
@@ -529,6 +646,22 @@ public class GapProductImportRunner {
         }
     }
 
+    private String resolveDefinitionRootSlug(
+            String slug,
+            Map<String, ImportCategoryDefinition> definitionsBySlug
+    ) {
+        String current = slug;
+        Set<String> visited = new LinkedHashSet<>();
+        while (current != null && !current.isBlank() && visited.add(current)) {
+            ImportCategoryDefinition definition = definitionsBySlug.get(current);
+            if (definition == null || definition.parentSlug() == null || definition.parentSlug().isBlank()) {
+                return current == null ? "" : current;
+            }
+            current = normalizedToken(definition.parentSlug());
+        }
+        return "";
+    }
+
     private String resolveRootSlug(UUID categoryId, Map<UUID, String> slugById, Map<UUID, UUID> parentById) {
         UUID current = categoryId;
         Set<UUID> visited = new HashSet<>();
@@ -543,151 +676,89 @@ public class GapProductImportRunner {
         return "";
     }
 
-    private LeafCategory resolvePreferredLeaf(
-            StyleRow row,
-            Map<String, LeafCategory> leafBySlug,
-            Map<String, List<LeafCategory>> leavesByRoot,
-            List<LeafCategory> allLeaves
-    ) {
-        String preferredSlug = choosePreferredLeafSlug(row);
-        if (!preferredSlug.isBlank()) {
-            LeafCategory direct = leafBySlug.get(preferredSlug);
-            if (direct != null) {
-                return direct;
-            }
-        }
-
-        String root = resolveSourceRoot(row);
-        List<LeafCategory> sameRoot = leavesByRoot.getOrDefault(root, List.of());
-        if (!sameRoot.isEmpty()) {
-            return sameRoot.get(0);
-        }
-        return allLeaves.get(0);
-    }
-
-    private List<AssignedCandidate> allocateCandidates(
-            List<Candidate> candidates,
+    private List<StyleAnalysis> analyzeSourceRows(
             List<LeafCategory> leafCategories,
-            int targetCount
+            Map<Long, List<String>> imageLinks,
+            List<StyleRow> styleRows
     ) {
-        List<Candidate> sortedCandidates = new ArrayList<>(candidates);
-        sortedCandidates.sort(Comparator.comparingLong(candidate -> candidate.row().styleId()));
-        Deque<Candidate> global = new ArrayDeque<>(sortedCandidates);
+        Map<String, LeafCategory> leafBySlug = leafCategories.stream()
+                .collect(Collectors.toMap(LeafCategory::slug, Function.identity()));
 
-        Map<UUID, Deque<Candidate>> byPreferredLeaf = new HashMap<>();
-        for (Candidate candidate : sortedCandidates) {
-            byPreferredLeaf.computeIfAbsent(candidate.preferredLeaf().id(), ignored -> new ArrayDeque<>())
-                    .add(candidate);
-        }
-
-        Map<UUID, List<LeafCategory>> siblingLeaves = leafCategories.stream()
-                .collect(Collectors.groupingBy(
-                        LeafCategory::parentId,
-                        LinkedHashMap::new,
-                        Collectors.collectingAndThen(Collectors.toList(), list -> {
-                            list.sort(Comparator.comparing(LeafCategory::slug));
-                            return list;
-                        })
-                ));
-
-        Map<String, List<LeafCategory>> leavesByRoot = leafCategories.stream()
-                .collect(Collectors.groupingBy(
-                        LeafCategory::rootSlug,
-                        LinkedHashMap::new,
-                        Collectors.collectingAndThen(Collectors.toList(), list -> {
-                            list.sort(Comparator.comparing(LeafCategory::slug));
-                            return list;
-                        })
-                ));
-
-        int effectiveTarget = Math.min(targetCount, sortedCandidates.size());
-        int baseQuota = effectiveTarget / leafCategories.size();
-        int remainder = effectiveTarget % leafCategories.size();
-
-        Set<Long> usedStyleIds = new LinkedHashSet<>();
-        List<AssignedCandidate> assigned = new ArrayList<>(effectiveTarget);
-
-        for (int index = 0; index < leafCategories.size(); index++) {
-            LeafCategory leaf = leafCategories.get(index);
-            int quota = baseQuota + (index < remainder ? 1 : 0);
-            if (quota <= 0) {
+        List<StyleAnalysis> analyses = new ArrayList<>(styleRows.size());
+        for (StyleRow row : styleRows) {
+            if (!ALLOWED_MASTER_CATEGORIES.contains(normalizedToken(row.masterCategory()))) {
                 continue;
             }
-
-            for (int done = 0; done < quota; done++) {
-                Candidate picked = pollCandidate(byPreferredLeaf.get(leaf.id()), usedStyleIds);
-
-                if (picked == null) {
-                    List<LeafCategory> siblings = siblingLeaves.getOrDefault(leaf.parentId(), List.of());
-                    picked = pollFromLeaves(siblings, byPreferredLeaf, usedStyleIds, leaf.id());
-                }
-
-                if (picked == null) {
-                    List<LeafCategory> sameRoot = leavesByRoot.getOrDefault(leaf.rootSlug(), List.of());
-                    picked = pollFromLeaves(sameRoot, byPreferredLeaf, usedStyleIds, leaf.id());
-                }
-
-                if (picked == null) {
-                    break;
-                }
-
-                usedStyleIds.add(picked.row().styleId());
-                assigned.add(new AssignedCandidate(picked, picked.preferredLeaf()));
-            }
+            GapCategoryMapper.MappingResult mapping = categoryMapper.map(row);
+            LeafCategory preferredLeaf = mapping.isImportable()
+                    ? leafBySlug.get(normalizedToken(mapping.chosenLeafSlug()))
+                    : null;
+            analyses.add(new StyleAnalysis(
+                    row,
+                    slugForStyle(row.styleId()),
+                    mapping,
+                    preferredLeaf,
+                    resolveCandidateImageUrls(imageLinks.get(row.styleId()))
+            ));
         }
-
-        // Keep taxonomy semantics stable: quota backfill may borrow from sibling queues,
-        // but category assignment must always stay on the candidate's preferred leaf.
-        // If we still need more items to reach target, assign remaining candidates to their preferred leaf.
-        while (assigned.size() < effectiveTarget) {
-            Candidate fallback = pollCandidate(global, usedStyleIds);
-            if (fallback == null) {
-                break;
-            }
-            usedStyleIds.add(fallback.row().styleId());
-            assigned.add(new AssignedCandidate(fallback, fallback.preferredLeaf()));
-        }
-
-        return assigned;
+        return analyses;
     }
 
-    private Candidate pollFromLeaves(
-            List<LeafCategory> leaves,
-            Map<UUID, Deque<Candidate>> byPreferredLeaf,
-            Set<Long> usedStyleIds,
-            UUID excludeLeafId
+    private List<StyleAnalysis> selectCandidatesForImport(List<StyleAnalysis> candidates, int targetCount) {
+        return candidates.stream()
+                .sorted(Comparator.comparingLong(analysis -> analysis.row().styleId()))
+                .limit(Math.max(0, targetCount))
+                .toList();
+    }
+
+    private GapCoverageReporter.CoverageSnapshot captureCoverageSnapshot(
+            String label,
+            List<LeafCategory> leafCategories,
+            List<StyleAnalysis> sourceAnalyses,
+            List<Product> importedProducts,
+            List<Product> publicImportedProducts
     ) {
-        for (LeafCategory leaf : leaves) {
-            if (leaf.id().equals(excludeLeafId)) {
-                continue;
-            }
-            Candidate picked = pollCandidate(byPreferredLeaf.get(leaf.id()), usedStyleIds);
-            if (picked != null) {
-                return picked;
-            }
-        }
-        return null;
+        return coverageReporter.captureSnapshot(
+                label,
+                leafCategories,
+                sourceAnalyses,
+                importedProducts,
+                publicImportedProducts
+        );
     }
 
-    private Candidate pollCandidate(Deque<Candidate> queue, Set<Long> usedStyleIds) {
-        if (queue == null) {
-            return null;
+    private void writeBeforeCoverageReport(GapCoverageReporter.CoverageSnapshot snapshot) {
+        try {
+            coverageReporter.writeBeforeReport(resolveReportOutputDir(), snapshot);
+            log.info("Wrote GAP baseline coverage report to {}", resolveReportOutputDir());
+        } catch (IOException ex) {
+            log.error("Failed to write GAP baseline coverage report.", ex);
         }
-        while (!queue.isEmpty()) {
-            Candidate candidate = queue.pollFirst();
-            if (candidate == null) {
-                continue;
-            }
-            if (!usedStyleIds.contains(candidate.row().styleId())) {
-                return candidate;
-            }
-        }
-        return null;
     }
 
-    private ProductRequest buildProductRequest(AssignedCandidate assigned) {
-        StyleRow row = assigned.candidate().row();
-        LeafCategory leaf = assigned.assignedLeaf();
+    private void writeAfterCoverageReport(
+            GapCoverageReporter.CoverageSnapshot beforeSnapshot,
+            List<LeafCategory> leafCategories,
+            List<StyleAnalysis> sourceAnalyses
+    ) {
+        try {
+            GapCoverageReporter.CoverageSnapshot afterSnapshot = captureCoverageSnapshot(
+                    "after",
+                    leafCategories,
+                    sourceAnalyses,
+                    findExistingImportedProducts(),
+                    findPublicImportedProducts()
+            );
+            coverageReporter.writeAfterReport(resolveReportOutputDir(), beforeSnapshot, afterSnapshot);
+            log.info("Wrote GAP post-import coverage report to {}", resolveReportOutputDir());
+        } catch (IOException ex) {
+            log.error("Failed to write GAP post-import coverage report.", ex);
+        }
+    }
+
+    private ProductRequest buildProductRequest(StyleAnalysis analysis) {
+        StyleRow row = analysis.row();
+        LeafCategory leaf = analysis.preferredLeaf();
         PricePlan pricePlan = planPrice(leaf.slug(), row.styleId());
 
         String usage = normalizedUsage(row.usage());
@@ -721,7 +792,7 @@ public class GapProductImportRunner {
                 .fit(selectFit(row))
                 .gender(resolveGender(row.gender()))
                 .status(Product.ProductStatus.ACTIVE.name())
-                .imageUrl(fallbackText(assigned.candidate().imageUrls().stream().findFirst().orElse(""), DEFAULT_IMAGE))
+                .imageUrl(fallbackText(analysis.imageUrls().stream().findFirst().orElse(""), DEFAULT_IMAGE))
                 .variants(variants)
                 .build();
     }
@@ -986,236 +1057,6 @@ public class GapProductImportRunner {
 
     private String slugForStyle(long styleId) {
         return ("gap-" + styleId).toLowerCase(Locale.ROOT);
-    }
-
-    private String choosePreferredLeafSlug(StyleRow row) {
-        String article = normalizedToken(row.articleType());
-        String subCategory = normalizedToken(row.subCategory());
-        String usage = normalizedToken(row.usage());
-        boolean female = isFemale(row.gender());
-        boolean male = isMale(row.gender());
-
-        String byArticle = mapByArticleType(article, subCategory, usage, female, male, row.masterCategory());
-        if (!byArticle.isBlank()) {
-            return byArticle;
-        }
-
-        String bySubCategory = mapBySubCategory(subCategory, usage, female, male, row.masterCategory());
-        if (!bySubCategory.isBlank()) {
-            return bySubCategory;
-        }
-
-        String byText = mapByDescriptiveText(row);
-        if (!byText.isBlank()) {
-            return byText;
-        }
-
-        String byUsage = mapByUsage(usage, female, male, row.masterCategory());
-        if (!byUsage.isBlank()) {
-            return byUsage;
-        }
-
-        return mapByGender(female, male, row.masterCategory());
-    }
-
-    private String mapByDescriptiveText(StyleRow row) {
-        if (!"accessories".equals(normalizedToken(row.masterCategory()))) {
-            return "";
-        }
-
-        String descriptiveText = String.join(" ",
-                normalizedToken(row.productDisplayName()),
-                normalizedToken(row.productDetails())
-        ).trim();
-        if (descriptiveText.isBlank()) {
-            return "";
-        }
-
-        if (containsAnyDescriptiveToken(descriptiveText, "crossbody", "messenger", "sling")) return "tui-deo-cheo";
-        if (containsAnyDescriptiveToken(descriptiveText, "handbag", "tote", "hobo", "satchel", "clutch", "bag", "bags")) return "tui-xach";
-        if (containsAnyDescriptiveToken(descriptiveText, "backpack", "backpacks")) return "balo";
-        if (containsAnyDescriptiveToken(descriptiveText, "wallet", "wallets")) return "vi";
-        if (containsAnyDescriptiveToken(descriptiveText, "belt", "belts")) return "that-lung";
-        if (containsAnyDescriptiveToken(descriptiveText, "cap", "caps", "hat", "hats", "beanie")) return "non-mu";
-        if (containsAnyDescriptiveToken(descriptiveText, "scarf", "scarves", "stole", "dupatta")) return "khan";
-        if (containsAnyDescriptiveToken(descriptiveText, "sock", "socks")) return "tat";
-        if (containsAnyDescriptiveToken(descriptiveText, "sunglass", "sunglasses", "eyewear", "frame", "frames")) return "kinh-mat";
-        if (containsAnyDescriptiveToken(descriptiveText, "watch", "watches")) return "dong-ho";
-        if (containsAnyDescriptiveToken(
-                descriptiveText,
-                "ring", "rings", "earring", "earrings", "necklace", "necklaces", "bracelet", "bracelets", "jewellery", "jewelry"
-        )) {
-            return "trang-suc";
-        }
-        return "";
-    }
-
-    private String mapByArticleType(
-            String article,
-            String subCategory,
-            String usage,
-            boolean female,
-            boolean male,
-            String masterCategory
-    ) {
-        String normalizedMaster = normalizedToken(masterCategory);
-        if ("accessories".equals(normalizedMaster)) {
-            if (containsAny(article, "handbag", "tote", "hobo", "satchel", "clutch", "bag")) return "tui-xach";
-            if (containsAny(article, "messenger", "crossbody", "sling")) return "tui-deo-cheo";
-            if (containsAny(article, "backpack", "backpacks")) return "balo";
-            if (containsAny(article, "wallet", "wallets")) return "vi";
-            if (containsAny(article, "belt", "belts")) return "that-lung";
-            if (containsAny(article, "cap", "caps", "hat", "hats", "beanie")) return "non-mu";
-            if (containsAny(article, "scarf", "scarves", "stole", "dupatta")) return "khan";
-            if (containsAny(article, "sock", "socks")) return "tat";
-            if (containsAny(article, "sunglass", "eyewear", "frame", "frames")) return "kinh-mat";
-            if (containsAny(article, "watch", "watches")) return "dong-ho";
-            if (containsAny(article, "ring", "earring", "necklace", "bracelet", "jewellery", "jewelry")) return "trang-suc";
-        }
-
-        if (containsAny(article, "hoodie", "sweatshirt")) return female ? "women-ao-khoac" : "men-ao-hoodie";
-        if (containsAny(article, "tshirt", "t-shirt", "tees", "tee", "top", "tops", "camisole", "vest", "tank")) {
-            return female ? "women-ao-thun" : "men-ao-thun";
-        }
-        if (containsAny(article, "polo")) return male ? "men-ao-polo" : "women-ao-kieu";
-        if (containsAny(article, "shirt", "shirts")) return female ? "women-ao-so-mi" : "men-ao-so-mi";
-        if (containsAny(article, "sweater", "pullover", "cardigan", "shrug", "jacket", "coat", "blazer")) {
-            return female ? "women-ao-khoac" : "men-ao-len";
-        }
-        if (containsAny(article, "dress", "dresses", "gown", "kurta", "kurtas", "saree", "skirt", "lehenga")) {
-            if (female || containsAny(subCategory, "dress")) {
-                return mapFemaleDressByUsage(usage);
-            }
-            return "men-ao-thun";
-        }
-        if (containsAny(article, "jean", "jeans", "jeggings")) return female ? "women-quan-jeans" : "men-quan-jeans";
-        if (containsAny(article, "legging", "leggings", "tights")) return female ? "women-quan-legging" : "men-quan-jogger";
-        if (containsAny(article, "short", "shorts", "capri", "capris")) return female ? "women-quan-short" : "men-quan-short";
-        if (containsAny(article, "trouser", "trousers", "chino", "chinos", "pant", "pants")) {
-            if (containsAny(usage, "sports")) {
-                return female ? "women-quan-the-thao" : "men-quan-the-thao";
-            }
-            return female ? "women-quan-tay" : "men-quan-tay";
-        }
-        if (containsAny(article, "tracksuit", "sports bra", "jersey", "training")) {
-            if (containsAny(article, "set", "tracksuit")) return female ? "women-set-the-thao" : "men-set-the-thao";
-            if (containsAny(article, "pant", "short")) return female ? "women-quan-the-thao" : "men-quan-the-thao";
-            return female ? "women-ao-the-thao" : "men-ao-the-thao";
-        }
-        if (containsAny(article, "night", "sleep", "lounge", "pyjama", "pyjamas", "robe", "innerwear", "bra", "brief")) {
-            return female ? "women-bo-mac-nha" : "men-bo-mac-nha";
-        }
-        return "";
-    }
-
-    private String mapBySubCategory(String subCategory, String usage, boolean female, boolean male, String masterCategory) {
-        String normalizedMaster = normalizedToken(masterCategory);
-        if ("accessories".equals(normalizedMaster)) {
-            if (containsAny(subCategory, "bags")) return "tui-xach";
-            if (containsAny(subCategory, "wallet")) return "vi";
-            if (containsAny(subCategory, "belt")) return "that-lung";
-            if (containsAny(subCategory, "eyewear")) return "kinh-mat";
-            if (containsAny(subCategory, "watches")) return "dong-ho";
-            if (containsAny(subCategory, "jewellery", "jewelry")) return "trang-suc";
-            if (containsAny(subCategory, "socks")) return "tat";
-            if (containsAny(subCategory, "headwear", "caps")) return "non-mu";
-        }
-
-        if (containsAny(subCategory, "topwear")) return female ? "women-ao-kieu" : "men-ao-thun";
-        if (containsAny(subCategory, "bottomwear")) return female ? "women-quan-jeans" : "men-quan-kaki";
-        if (containsAny(subCategory, "dress")) return mapFemaleDressByUsage(usage);
-        if (containsAny(subCategory, "innerwear", "sleepwear", "loungewear")) return female ? "women-bo-mac-nha" : "men-bo-mac-nha";
-        if (containsAny(subCategory, "sports")) return female ? "women-set-the-thao" : "men-set-the-thao";
-        return "";
-    }
-
-    private String mapByUsage(String usage, boolean female, boolean male, String masterCategory) {
-        String normalizedMaster = normalizedToken(masterCategory);
-        if ("accessories".equals(normalizedMaster)) {
-            return "tui-xach";
-        }
-        if (containsAny(usage, "sports")) return female ? "women-ao-the-thao" : "men-ao-the-thao";
-        if (containsAny(usage, "party")) return female ? "women-vay-du-tiec" : "men-quan-tay";
-        if (containsAny(usage, "formal")) return female ? "women-vay-cong-so" : "men-quan-tay";
-        if (containsAny(usage, "home")) return female ? "women-bo-mac-nha" : "men-bo-mac-nha";
-        return "";
-    }
-
-    private String mapByGender(boolean female, boolean male, String masterCategory) {
-        String normalizedMaster = normalizedToken(masterCategory);
-        if ("accessories".equals(normalizedMaster)) {
-            return "tui-xach";
-        }
-        if (female) {
-            return "women-ao-kieu";
-        }
-        if (male) {
-            return "men-ao-thun";
-        }
-        return "men-ao-thun";
-    }
-
-    private String mapFemaleDressByUsage(String usage) {
-        if (containsAny(usage, "party")) return "women-vay-du-tiec";
-        if (containsAny(usage, "formal")) return "women-vay-cong-so";
-        if (containsAny(usage, "ethnic")) return "women-vay-maxi";
-        return "women-vay-lien";
-    }
-
-    private String resolveSourceRoot(StyleRow row) {
-        String master = normalizedToken(row.masterCategory());
-        if ("accessories".equals(master)) {
-            return "accessories";
-        }
-        if (isFemale(row.gender())) {
-            return "women";
-        }
-        return "men";
-    }
-
-    private boolean isFemale(String gender) {
-        String token = normalizedToken(gender);
-        return token.equals("women") || token.equals("girls");
-    }
-
-    private boolean isMale(String gender) {
-        String token = normalizedToken(gender);
-        return token.equals("men") || token.equals("boys");
-    }
-
-    private boolean containsAny(String source, String... tokens) {
-        if (source == null || source.isBlank()) {
-            return false;
-        }
-        for (String token : tokens) {
-            if (source.contains(token)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean containsAnyDescriptiveToken(String source, String... tokens) {
-        String normalizedSource = normalizeDescriptiveText(source);
-        if (normalizedSource.isBlank()) {
-            return false;
-        }
-        String paddedSource = " " + normalizedSource + " ";
-        for (String token : tokens) {
-            String normalizedToken = normalizeDescriptiveText(token);
-            if (!normalizedToken.isBlank() && paddedSource.contains(" " + normalizedToken + " ")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private String normalizeDescriptiveText(String value) {
-        String normalized = normalizedToken(value);
-        if (normalized.isBlank()) {
-            return "";
-        }
-        return normalized.replaceAll("[^\\p{Alnum}]+", " ").trim().replaceAll("\\s+", " ");
     }
 
     private Map<Long, List<String>> loadImageLinks(Path path) throws IOException {
@@ -1548,6 +1389,44 @@ public class GapProductImportRunner {
         return productRepository.findBySlugStartingWithIgnoreCase("gap-");
     }
 
+    private List<Product> findPublicImportedProducts() {
+        return productRepository.findAllPublicProducts().stream()
+                .filter(product -> product.getSlug() != null)
+                .filter(product -> product.getSlug().trim().toLowerCase(Locale.ROOT).startsWith("gap-"))
+                .toList();
+    }
+
+    private Path resolveReportOutputDir() {
+        String configured = normalizeText(properties.getReportOutputDir());
+        if (configured.isBlank()) {
+            configured = "backend/target/gap-coverage";
+        }
+
+        Path direct = Path.of(configured);
+        if (direct.isAbsolute()) {
+            return direct.normalize();
+        }
+
+        Path cwd = Path.of("").toAbsolutePath().normalize();
+        List<Path> candidates = List.of(
+                cwd.resolve(direct).normalize(),
+                cwd.resolve("..").resolve(direct).normalize(),
+                direct.toAbsolutePath().normalize()
+        );
+
+        for (Path candidate : candidates) {
+            if (Files.exists(candidate)) {
+                return candidate;
+            }
+            Path parent = candidate.getParent();
+            if (parent != null && Files.exists(parent)) {
+                return candidate;
+            }
+        }
+
+        return candidates.get(0);
+    }
+
     private void removeExistingImportedProducts(List<Product> existingBatch) {
         List<UUID> productIds = existingBatch.stream()
                 .map(Product::getId)
@@ -1594,9 +1473,9 @@ public class GapProductImportRunner {
         product.setImages(images);
     }
 
-    private record LeafCategory(UUID id, String slug, UUID parentId, String rootSlug) {}
+    static record LeafCategory(UUID id, String slug, UUID parentId, String rootSlug) {}
 
-    private record StyleRow(
+    static record StyleRow(
             long styleId,
             String gender,
             String masterCategory,
@@ -1616,11 +1495,26 @@ public class GapProductImportRunner {
             String careDetails
     ) {}
 
+    static record StyleAnalysis(
+            StyleRow row,
+            String productSlug,
+            GapCategoryMapper.MappingResult mapping,
+            LeafCategory preferredLeaf,
+            List<String> imageUrls
+    ) {
+        boolean hasImages() {
+            return imageUrls != null && !imageUrls.isEmpty();
+        }
+
+        boolean isImportable() {
+            return hasImages()
+                    && mapping != null
+                    && mapping.isImportable()
+                    && preferredLeaf != null;
+        }
+    }
+
     private record VariantColor(String name, String hex) {}
-
-    private record Candidate(StyleRow row, LeafCategory preferredLeaf, List<String> imageUrls) {}
-
-    private record AssignedCandidate(Candidate candidate, LeafCategory assignedLeaf) {}
 
     private record PricePlan(BigDecimal basePrice, BigDecimal salePrice) {}
 
