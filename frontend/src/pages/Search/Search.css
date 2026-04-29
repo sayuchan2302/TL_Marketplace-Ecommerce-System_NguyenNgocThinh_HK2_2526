@@ -361,6 +361,25 @@
   color: var(--co-gray-600);
 }
 
+.search-visual-query__metadata {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--co-gray-600);
+}
+
+.search-visual-query__metadata-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.search-visual-query__metadata-key {
+  font-weight: 700;
+  color: var(--co-gray-700);
+}
+
 .search-visual-query__actions {
   display: flex;
   flex-wrap: wrap;

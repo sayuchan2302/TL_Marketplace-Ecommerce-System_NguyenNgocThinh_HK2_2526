@@ -69,6 +69,9 @@ export interface MarketplaceImageSearchData {
   totalCandidates: number;
   mode?: string;
   indexVersion?: string;
+  inferredCategory?: string;
+  inferredCategoryScore?: number;
+  categoryFilterApplied?: string;
   matches?: MarketplaceImageSearchMatch[];
 }
 
@@ -201,6 +204,9 @@ interface MarketplaceImageSearchPayload {
   totalCandidates?: number;
   mode?: string;
   indexVersion?: string;
+  inferredCategory?: string;
+  inferredCategoryScore?: number;
+  categoryFilterApplied?: string;
   matches?: Array<{
     productId?: string;
     rank?: number;
@@ -648,6 +654,11 @@ export const marketplaceService = {
       totalCandidates: Math.max(0, Number(payload.totalCandidates || 0)),
       mode: (payload.mode || '').trim() || undefined,
       indexVersion: (payload.indexVersion || '').trim() || undefined,
+      inferredCategory: (payload.inferredCategory || '').trim() || undefined,
+      inferredCategoryScore: Number.isFinite(payload.inferredCategoryScore)
+        ? Number(payload.inferredCategoryScore)
+        : undefined,
+      categoryFilterApplied: (payload.categoryFilterApplied || '').trim() || undefined,
       matches,
     };
   },

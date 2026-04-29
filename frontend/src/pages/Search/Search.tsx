@@ -35,7 +35,11 @@ interface ImageSearchSession {
   fileName: string;
   previewUrl: string;
   totalCandidates: number;
+  inferredCategory?: string;
+  inferredCategoryScore?: number;
+  categoryFilterApplied?: string;
 }
+
 const isEditableTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -164,6 +168,9 @@ const Search = () => {
         fileName: file.name,
         previewUrl,
         totalCandidates: response.totalCandidates,
+        inferredCategory: response.inferredCategory,
+        inferredCategoryScore: response.inferredCategoryScore,
+        categoryFilterApplied: response.categoryFilterApplied,
       });
     } catch (error) {
       URL.revokeObjectURL(previewUrl);
@@ -532,6 +539,9 @@ const Search = () => {
                   fileName={imageSearchSession.fileName}
                   previewUrl={imageSearchSession.previewUrl}
                   totalCandidates={imageSearchSession.totalCandidates}
+                  inferredCategory={imageSearchSession.inferredCategory}
+                  inferredCategoryScore={imageSearchSession.inferredCategoryScore}
+                  categoryFilterApplied={imageSearchSession.categoryFilterApplied}
                   pasteTargetRef={pasteTargetRef}
                   onPickImage={triggerImagePicker}
                   onFocusPasteTarget={focusPasteTarget}
